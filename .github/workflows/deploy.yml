@@ -4,11 +4,26 @@ on:
   push:
     branches:
       - main
+      - testing   # ← NEU: CI auf Testing erlauben
 
 permissions:
   contents: write
 
 jobs:
+  test:
+    if: github.ref == 'refs/heads/testing'
+    runs-on: ubuntu-latest
+    name: 🧪 HTML Validierung
+    steps:
+      - name: 📦 Repo klonen
+        uses: actions/checkout@v3
+
+      - name: 🔍 Installiere htmlhint
+        run: npm install -g htmlhint
+
+      - name: ✅ HTML prüfen
+        run: htmlhint index.html || exit 1
+
   deploy:
     runs-on: ubuntu-latest
 
