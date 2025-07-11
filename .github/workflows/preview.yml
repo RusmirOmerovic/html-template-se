@@ -1,44 +1,44 @@
-name: 🚀 Deploy to GitHub Pages
+name: 🚀 Preview mit Tests (testing-Branch)
 
 on:
   push:
     branches:
-      - main
-      - testing   # ← NEU: CI auf Testing erlauben
+      - testing
 
 permissions:
   contents: write
 
 jobs:
   test:
-    if: github.ref == 'refs/heads/testing'
+    name: 🔍 HTML-Validierung
     runs-on: ubuntu-latest
-    name: 🧪 HTML Validierung
     steps:
-      - name: 📦 Repo klonen
+      - name: 📥 Repository klonen
         uses: actions/checkout@v3
 
-      - name: 🔍 Installiere htmlhint
+      - name: 🛠️ htmlhint installieren
         run: npm install -g htmlhint
 
-      - name: ✅ HTML prüfen
+      - name: ✅ HTML-Dateien prüfen
         run: htmlhint index.html || exit 1
 
   deploy:
+    name: 🚀 Preview Deploy
+    needs: test
     runs-on: ubuntu-latest
-
     steps:
-      - name: 📥 Checkout Repository
+      - name: 📥 Repository klonen
         uses: actions/checkout@v3
 
-      - name: 🧱 Build Static Site
+      - name: 📦 Baue statische Seite
         run: |
           mkdir public
           cp index.html public/index.html
 
-      - name: 🚀 Deploy to GitHub Pages
+      - name: 🚀 Deploy mit GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
-          publish_branch: gh-pages
+          publish_branch: preview
+
