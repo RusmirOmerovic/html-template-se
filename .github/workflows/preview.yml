@@ -1,25 +1,21 @@
-name: 🚀 Preview mit Tests (testing-Branch)
+name: 🌐 Build & Preview mit HTML Lint
 
 on:
   push:
-    branches:
-      - testing
-
-permissions:
-  contents: write
+    branches: [preview]
 
 jobs:
   test:
-    name: 🔍 HTML-Validierung
+    name: ✅ HTML-Dateien prüfen
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Repository klonen
         uses: actions/checkout@v3
 
-      - name: 🛠️ htmlhint installieren
+      - name: 🔍 HTMLhint installieren
         run: npm install -g htmlhint
 
-      - name: ✅ HTML-Dateien prüfen
+      - name: 🔍 HTML-Dateien prüfen
         run: htmlhint index.html || exit 1
 
   deploy:
@@ -30,7 +26,7 @@ jobs:
       - name: 📥 Repository klonen
         uses: actions/checkout@v3
 
-      - name: 📦 Baue statische Seite
+      - name: 🏗️ Baue statische Seite
         run: |
           mkdir public
           cp index.html public/index.html
