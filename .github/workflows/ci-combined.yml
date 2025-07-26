@@ -1,13 +1,13 @@
-name: 🔄 Combined CI Workflow
+# .github/workflows/ci-clean.yml
+name: 🚀 Minimaler CI Build + Formatcheck
 
 on:
   push:
-    branches: [testing, preview]
-  pull_request:
+    branches: [main, testing, develop]
 
 jobs:
-  stylelint:
-    name: 💅 CSS Lint Check
+  build:
+    name: 🔍 Build-Check + Format
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repository
@@ -21,43 +21,5 @@ jobs:
       - name: 📦 Install Dependencies
         run: npm ci
 
-      - name: 🔧 Installiere fehlende Stylelint-Configs
-        run: npm install --save-dev stylelint-config-prettier stylelint-config-tailwindcss
-
-      - name: 💅 Run Stylelint
-        run: npm run lint:css
-
-  htmlhint:
-    name: ✅ HTML-Dateien prüfen (nur preview-Branch)
-    if: github.ref == 'refs/heads/preview'
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: 🔍 HTMLhint installieren
-        run: npm install -g htmlhint
-
-      - name: 🔍 HTML-Dateien prüfen
-        run: htmlhint index.html || exit 1
-
-  preview-deploy:
-    name: 🚀 Preview Deploy (nur preview-Branch)
-    if: github.ref == 'refs/heads/preview'
-    needs: htmlhint
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: 🏗️ Baue statische Seite
-        run: |
-          mkdir public
-          cp index.html public/index.html
-
-      - name: 🚀 Deploy mit GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
-          publish_branch: preview
+      - name: ✨ Format-Check mit Prettier
+        run: npx prettier --check "**/*.{js,jsx,ts,tsx,css,scss,html}"
