@@ -1,0 +1,60 @@
+name: 🔄 Combined CI Workflow
+
+on:
+  push:
+    branches: [testing, preview]
+  pull_request:
+
+jobs:
+  stylelint:
+    name: 💅 CSS Lint Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: 🟢 Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: 📦 Install Dependencies
+        run: npm install
+
+      - name: 💅 Run Stylelint
+        run: npm run lint:css
+
+  htmlhint:
+    name: ✅ HTML-Dateien prüfen (nur preview-Branch)
+    if: github.ref == 'refs/heads/preview'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: 🔍 HTMLhint installieren
+        run: npm install -g htmlhint
+
+      - name: 🔍 HTML-Dateien prüfen
+        run: htmlhint index.html || exit 1
+
+  preview-deploy:
+    name: 🚀 Preview Deploy (nur preview-Branch)
+    if: github.ref == 'refs/heads/preview'
+    needs: htmlhint
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: 🏗️ Baue statische Seite
+        run: |
+          mkdir public
+          cp index.html public/index.html
+
+      - name: 🚀 Deploy mit GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: preview
