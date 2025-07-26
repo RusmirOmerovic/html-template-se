@@ -1,15 +1,15 @@
-import { useState } from 'react';
-import { supabase } from '../supabaseClient';
+import { useState } from "react";
+import { supabase } from "../supabaseClient";
 
 const ProjectForm = ({ user }) => {
-  const [repoUrl, setRepoUrl] = useState('');
-  const [status, setStatus] = useState('in Arbeit');
+  const [repoUrl, setRepoUrl] = useState("");
+  const [status, setStatus] = useState("in Arbeit");
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const { data, error } = await supabase.from('projects').insert([
+    const { data, error } = await supabase.from("projects").insert([
       {
         repo_url: repoUrl,
         status: status,
@@ -18,17 +18,20 @@ const ProjectForm = ({ user }) => {
     ]);
 
     if (error) {
-      console.error('Fehler beim Einfügen:', error.message);
+      console.error("Fehler beim Einfügen:", error.message);
       setSuccess(false);
     } else {
-      setRepoUrl('');
-      setStatus('in Arbeit');
+      setRepoUrl("");
+      setStatus("in Arbeit");
       setSuccess(true);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-gray-100 p-4 rounded shadow mb-6">
+    <form
+      onSubmit={handleSubmit}
+      className="bg-gray-100 p-4 rounded shadow mb-6"
+    >
       <h2 className="text-lg font-semibold mb-2">Neues Projekt hinzufügen</h2>
 
       <label className="block mb-2">
@@ -61,10 +64,11 @@ const ProjectForm = ({ user }) => {
         Projekt speichern
       </button>
 
-      {success && <p className="text-green-600 mt-2">✅ Projekt wurde gespeichert.</p>}
+      {success && (
+        <p className="text-green-600 mt-2">✅ Projekt wurde gespeichert.</p>
+      )}
     </form>
   );
 };
 
 export default ProjectForm;
-
