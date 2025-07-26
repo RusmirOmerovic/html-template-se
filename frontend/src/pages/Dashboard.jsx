@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { getUserRole } from "../utils/getUserRole";
+import ProjectForm from "../components/ProjectForm";
 
 const Dashboard = () => {
   const [projects, setProjects] = useState([]);
@@ -63,6 +64,7 @@ const Dashboard = () => {
       )}
       {projects.length > 0 ? (
         <ul className="space-y-4">
+          {user && <ProjectForm user={user} />}
           {projects.map((proj) => (
             <li key={proj.id} className="bg-white rounded shadow p-4">
               <p>
