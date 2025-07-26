@@ -7,8 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node + Build
 node_modules
-dist
+dist/
 dist-ssr
 *.local
 
@@ -22,3 +23,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sicherheit
+.env
+.env.local
+.env.*.local
