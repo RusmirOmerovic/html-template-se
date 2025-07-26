@@ -1,72 +1,79 @@
 import { useState } from "react";
 import { supabase } from "../supabaseClient";
 
-const ProjectForm = ({ user }) => {
-  const [repoUrl, setRepoUrl] = useState("");
+const ProjectForm = ({ user, onProjectSaved }) => {
+  const [name, setName] = useState("");
   const [status, setStatus] = useState("in Arbeit");
-  const [success, setSuccess] = useState(false);
+  const [startdatum, setStartdatum] = useState("");
+  const [meilensteine, setMeilensteine] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const { data, error } = await supabase.from("projects").insert([
+    const { error } = await supabase.from("projects").insert([
       {
-        repo_url: repoUrl,
-        status: status,
+        name,
+        status,
+        startdatum,
+        meilensteine,
         owner_id: user.id,
       },
     ]);
 
     if (error) {
-      console.error("Fehler beim Einfügen:", error.message);
-      setSuccess(false);
+      alert("❌ Fehler beim Speichern: " + error.message);
     } else {
-      setRepoUrl("");
+      setName("");
       setStatus("in Arbeit");
-      setSuccess(true);
+      setStartdatum("");
+      setMeilensteine("");
+      if (onProjectSaved) onProjectSaved();
     }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-gray-100 p-4 rounded shadow mb-6"
-    >
-      <h2 className="text-lg font-semibold mb-2">Neues Projekt hinzufügen</h2>
+    <form onSubmit={handleSubmit} className="bg-white p-4 shadow rounded mb-6">
+      <h2 className="text-lg font-bold mb-3">Projekt anlegen</h2>
 
-      <label className="block mb-2">
-        Repository URL:
-        <input
-          type="text"
-          value={repoUrl}
-          onChange={(e) => setRepoUrl(e.target.value)}
-          className="w-full mt-1 p-2 border rounded"
-          required
-        />
-      </label>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Projektname"
+        className="w-full p-2 border rounded mb-2"
+        required
+      />
 
-      <label className="block mb-2">
-        Status:
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="w-full mt-1 p-2 border rounded"
-        >
-          <option value="in Arbeit">in Arbeit</option>
-          <option value="abgeschlossen">abgeschlossen</option>
-        </select>
-      </label>
+      <input
+        type="date"
+        value={startdatum}
+        onChange={(e) => setStartdatum(e.target.value)}
+        className="w-full p-2 border rounded mb-2"
+        required
+      />
+
+      <select
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+        className="w-full p-2 border rounded mb-2"
+      >
+        <option value="in Arbeit">in Arbeit</option>
+        <option value="abgeschlossen">abgeschlossen</option>
+      </select>
+
+      <textarea
+        value={meilensteine}
+        onChange={(e) => setMeilensteine(e.target.value)}
+        placeholder="Meilensteine (z. B. Analyse, Prototyp, Test...)"
+        className="w-full p-2 border rounded mb-3"
+      />
 
       <button
         type="submit"
-        className="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
       >
         Projekt speichern
       </button>
-
-      {success && (
-        <p className="text-green-600 mt-2">✅ Projekt wurde gespeichert.</p>
-      )}
     </form>
   );
 };

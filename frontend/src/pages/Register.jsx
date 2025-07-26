@@ -1,67 +1,92 @@
-import { useState } from 'react'
-import { supabase } from '../supabaseClient'
-import { useNavigate } from 'react-router-dom'
+import { useState } from "react";
+import { supabase } from "../supabaseClient";
 
-function Register() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
-  const navigate = useNavigate()
+const Register = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
 
   const handleRegister = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    const role = email.endsWith('@iu.org') ? 'tutor' : 'student'
-
-    const { data, error: signUpError } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-    })
+    });
 
-    if (signUpError) {
-      setError(signUpError.message)
-      return
+    if (error) {
+      console.error("Registrierung fehlgeschlagen:", error.message);
+      setMessage("❌ Registrierung fehlgeschlagen");
+      return;
     }
 
-    // user_roles Tabelle ergänzen
-    const { error: roleError } = await supabase.from('user_roles').insert([
-      { user_id: data.user.id, role },
-    ])
+    if (data?.user) {
+      const userId = data.user.id;
+      const domain = email.split("@")[1];
+      let role = "student";
 
-    if (roleError) {
-      setError(roleError.message)
-    } else {
-      navigate('/login')
+      if (domain === "web.de") {
+        role = "tutor"; // TESTROLLENLOGIK
+      }
+
+      const { error: insertError } = await supabase.from("user_roles").insert([
+        {
+          user_id: userId,
+          role,
+        },
+      ]);
+
+      if (insertError) {
+        console.error(
+          "Rolle konnte nicht gespeichert werden:",
+          insertError.message
+        );
+        setMessage("⚠️ Registrierung erfolgreich, aber Rolle fehlt.");
+      } else {
+        setMessage(`✅ Registrierung erfolgreich – Rolle: ${role}`);
+      }
     }
-  }
+  };
 
   return (
-    <div className="max-w-md mx-auto mt-10 bg-white p-6 rounded shadow">
-      <h1 className="text-2xl font-bold mb-4 text-center text-blue-600">📝 Registrierung</h1>
-      <form onSubmit={handleRegister} className="space-y-4">
+    <form
+      onSubmit={handleRegister}
+      className="max-w-md mx-auto mt-10 bg-white p-6 shadow rounded"
+    >
+      <h2 className="text-xl font-bold mb-4">Registrieren</h2>
+
+      <label className="block mb-2">
+        E-Mail-Adresse:
         <input
           type="email"
-          placeholder="E-Mail-Adresse (z. B. @iu.org)"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full mt-1 p-2 border rounded"
           required
         />
+      </label>
+
+      <label className="block mb-4">
+        Passwort:
         <input
           type="password"
-          placeholder="Passwort"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full mt-1 p-2 border rounded"
           required
         />
-        <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-          Registrieren
-        </button>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-      </form>
-    </div>
-  )
-}
+      </label>
 
-export default Register
+      <button
+        type="submit"
+        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+      >
+        Registrieren
+      </button>
+
+      {message && <p className="mt-4 text-sm text-center">{message}</p>}
+    </form>
+  );
+};
+
+export default Register;

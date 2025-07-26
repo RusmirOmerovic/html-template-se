@@ -1,53 +1,68 @@
-import { useState } from 'react'
-import { supabase } from '../supabaseClient'
-import { useNavigate } from 'react-router-dom'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
-function Login() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
-  const navigate = useNavigate()
+const Login = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-    })
+    });
+
     if (error) {
-      setError(error.message)
+      console.error("Login fehlgeschlagen:", error.message);
+      setMessage("❌ Login fehlgeschlagen");
     } else {
-      navigate('/') // Weiterleitung nach Login
+      navigate("/dashboard");
     }
-  }
+  };
 
   return (
-    <div className="max-w-md mx-auto mt-10 bg-white p-6 rounded shadow">
-      <h1 className="text-2xl font-bold mb-4 text-center text-green-600">🔐 Login</h1>
-      <form onSubmit={handleLogin} className="space-y-4">
+    <form
+      onSubmit={handleLogin}
+      className="max-w-md mx-auto mt-10 bg-white p-6 shadow rounded"
+    >
+      <h2 className="text-xl font-bold mb-4">Login</h2>
+
+      <label className="block mb-2">
+        E-Mail-Adresse:
         <input
           type="email"
-          placeholder="E-Mail"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full mt-1 p-2 border rounded"
           required
         />
+      </label>
+
+      <label className="block mb-4">
+        Passwort:
         <input
           type="password"
-          placeholder="Passwort"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full mt-1 p-2 border rounded"
           required
         />
-        <button type="submit" className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">
-          Anmelden
-        </button>
-        {error && <p className="text-red-600">{error}</p>}
-      </form>
-    </div>
-  )
-}
+      </label>
 
-export default Login
+      <button
+        type="submit"
+        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+      >
+        Login
+      </button>
+
+      {message && <p className="mt-4 text-sm text-center">{message}</p>}
+    </form>
+  );
+};
+
+export default Login;

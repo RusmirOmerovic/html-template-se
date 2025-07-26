@@ -1,25 +1,33 @@
-import { Routes, Route } from 'react-router-dom'
-import Home from './pages/Home'
-import Login from './pages/Login'
-import Navbar from './components/Navbar'
-import Dashboard from './pages/Dashboard'
-import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
+import { Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Navbar from "./components/Navbar";
+import Dashboard from "./pages/Dashboard";
+import AuthPage from "./pages/AuthPage";
+import { useEffect, useState } from "react";
+import { supabase } from "./supabaseClient";
 
 function App() {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // Nutzer direkt beim Start holen
     supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user)
-    })
+      setUser(user);
+    });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
+    // Listener für Login / Logout
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
 
-    return () => listener.subscription.unsubscribe()
-  }, [])
+    // Aufräumen beim Verlassen der Komponente
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -27,6 +35,7 @@ function App() {
       <div className="p-4">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/register" element={<AuthPage />} />
           <Route path="/login" element={<Login />} />
           <Route
             path="/dashboard"
@@ -35,7 +44,7 @@ function App() {
                 <Dashboard />
               ) : (
                 <p className="text-center mt-10 text-red-500">
-                  Zugriff nur mit Login
+                  🔒 Zugriff nur mit Login
                 </p>
               )
             }
@@ -43,8 +52,7 @@ function App() {
         </Routes>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
-
+export default App;
