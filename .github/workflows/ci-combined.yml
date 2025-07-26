@@ -19,7 +19,10 @@ jobs:
           node-version: 18
 
       - name: 📦 Install Dependencies
-        run: npm install
+        run: npm ci
+
+      - name: 🔧 Installiere fehlende Stylelint-Configs
+        run: npm install --save-dev stylelint-config-prettier stylelint-config-tailwindcss
 
       - name: 💅 Run Stylelint
         run: npm run lint:css
