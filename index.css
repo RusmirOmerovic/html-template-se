@@ -1,0 +1,15 @@
+body {
+  font-family: sans-serif;
+  text-align: center;
+  padding: 2rem;
+  transition: background 0.3s, color 0.3s;
+}
+body.dark {
+  background-color: #222;
+  color: white;
+}
+button {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
