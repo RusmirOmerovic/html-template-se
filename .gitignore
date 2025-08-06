@@ -1,2 +1,39 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+logs/
+*.log
+
+# .env & Secrets
+.env
+.env.local
+.env.*.local
+
+# Editor-/System-Dateien
 .DS_Store
-.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# GitHub Workflows Cache
+.github/workflows/*.cache
+
+# Supabase local
+.supabase/
+
+# Build
+dist/
+build/
+
+# Docker
+docker-compose.override.yml
+*.local.yml
+*.env
+
+# macOS
+*.DS_Store
+
