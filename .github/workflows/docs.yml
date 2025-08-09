@@ -1,0 +1,84 @@
+name: Generate Docs (README + Wiki)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['main']
+
+jobs:
+  docs:
+    if: ${{ secrets.OPENAI_API_KEY != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect repository context
+        run: |
+          echo "## REPO TREE" > repo_context.txt
+          ls -R >> repo_context.txt
+          echo -e "\n## README (existing)" >> repo_context.txt
+          [ -f README.md ] && sed -n '1,400p' README.md >> repo_context.txt || true
+
+      - name: Generate README.md with OpenAI
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          BODY=$(jq -Rs . << 'EOF'
+          Du bist ein technischer Redakteur. Lies den folgenden Repository-Kontext
+          und erstelle ein vollständiges, korrektes, deutschsprachiges README.md.
+          Anforderungen:
+          - Kurze Projektbeschreibung (2 Absätze)
+          - Features-Liste
+          - Installation (macOS/Linux)
+          - Nutzung mit Beispielen (npm scripts)
+          - CI/CD-Beschreibung (HTML/CSS/JS Lint + Tests)
+          - Ordnerstruktur
+          - Contribution-Hinweise
+          - Lizenz-Abschnitt (falls ermittelbar), sonst TODO
+          Repository-Kontext:
+          EOF
+          )
+          INPUT=$(cat repo_context.txt)
+          curl -s https://api.openai.com/v1/responses             -H "Authorization: Bearer $OPENAI_API_KEY"             -H "Content-Type: application/json"             -d "$(jq -n --arg prompt "$BODY\n\n$INPUT" --arg model "gpt-5" '{
+                  model: $model,
+                  input: $prompt,
+                  max_output_tokens: 4000
+                }')"             | jq -r '.output_text' > README.md
+
+      - name: Generate Wiki pages with OpenAI
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          mkdir -p docs/wiki
+          gen() {
+            local TOPIC="$1"
+            local FILE="$2"
+            PROMPT=$(jq -Rs . <<EOF
+              Erstelle eine ausführliche deutschsprachige Wiki-Seite zum Thema: $TOPIC.
+              Nutze den Repo-Kontext. Gliedere klar, füge Codebeispiele, häufige Fehler und Troubleshooting hinzu. Zielgruppe: Entwickler.
+              Repo-Kontext folgt nach der Linie.
+              EOF
+              )
+                    INPUT=$(cat repo_context.txt)
+                    curl -s https://api.openai.com/v1/responses               -H "Authorization: Bearer $OPENAI_API_KEY"               -H "Content-Type: application/json"               -d "$(jq -n --arg prompt "$PROMPT\n$INPUT" --arg model "gpt-5" '{
+                      model: $model,
+                      input: $prompt,
+                      max_output_tokens: 6000
+                    }')"               
+                | jq -r '.output_text' > "docs/wiki/$FILE"
+          }
+          gen "Installation & Setup" "Installation.md"
+          gen "CI/CD-Workflows (HTML/CSS/JS, Linting, Tests)" "CI-CD.md"
+          gen "Beispielnutzung & Skripte" "Usage.md"
+          gen "Beitragsregeln (Contributing)" "Contributing.md"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: docs/generated
+          commit-message: 'docs: auto-generate README + Wiki'
+          title: 'Automatisch generierte Doku (README + Wiki)'
+          body: 'Dieser PR wurde automatisch erstellt. Bitte prüfen.'
