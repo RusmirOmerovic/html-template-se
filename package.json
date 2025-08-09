@@ -1,0 +1,26 @@
+{
+  "name": "html-template-se",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "lint:html": "htmlhint \"**/*.html\"",
+    "lint:css": "stylelint \"**/*.{css,scss}\"",
+    "lint:js": "eslint \"**/*.{js,mjs,cjs}\"",
+    "fmt:check": "prettier -c .",
+    "fmt:write": "prettier -w .",
+    "test": "jest --passWithNoTests"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-n": "^16.6.2",
+    "eslint-plugin-promise": "^6.6.0",
+    "htmlhint": "^1.1.4",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.3",
+    "stylelint": "^16.6.1",
+    "stylelint-config-standard": "^36.0.0"
+  }
+}
