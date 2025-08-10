@@ -1,0 +1,27 @@
+name: CI (HTML/CSS/JS)
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci || npm i
+      - name: Lint HTML
+        run: npm run lint:html
+      - name: Lint CSS
+        run: npm run lint:css
+      - name: Lint JS
+        run: npm run lint:js
+      - name: Prettier check
+        run: npm run fmt:check
+      - name: Unit tests
+        run: npm test
