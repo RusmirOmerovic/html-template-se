@@ -4,11 +4,11 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        INSTALL_SE_TOOLS: "true"   # bei Bedarf "false"
+        INSTALL_SE_TOOLS: 'true' # bei Bedarf "false"
     container_name: html-template-se
-    command: ["npx","vite","--host","0.0.0.0","--port","5173"]
+    command: ['npx', 'vite', '--host', '0.0.0.0', '--port', '5173']
     ports:
-      - "5173:5173"
+      - '5173:5173'
     environment:
       - NODE_ENV=development
       # macOS/Windows: zuverlässigeres File-Watching im Container
@@ -27,7 +27,7 @@ services:
     stdin_open: true
     tty: true
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -fsS http://localhost:5173 >/dev/null || exit 1"]
+      test: ['CMD', 'sh', '-c', 'curl -fsS http://localhost:5173 >/dev/null || exit 1']
       interval: 10s
       timeout: 3s
       retries: 12
