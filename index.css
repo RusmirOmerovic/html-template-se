@@ -2,7 +2,7 @@ body {
   font-family: sans-serif;
   text-align: center;
   padding: 2rem;
-  transition: background 0.3s, color 0.3s;
+  transition: 0.3s;
 }
 body.dark {
   background-color: #222;
@@ -16,7 +16,8 @@ button {
   border-radius: 4px;
   background-color: #c9c319;
   color: rgb(62, 62, 56);
-  transition: background 0.3s;
+  transition: 0.3s;
+  margin: 15px;
 }
 button:hover {
   background-color: #a9a30d;

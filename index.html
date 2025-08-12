@@ -7,22 +7,10 @@
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
-  <h1>🌗 Mini-Demo: Dark Mode Toggle</h1>
+  <h1>🌗 Mini-Demo: Dark/Light Mode Toggle</h1>
   <h2>Toggle the theme between light and dark mode.</h2>
   <button id="toggle-btn">Toggle Theme</button>
-  <div id="theme-indicator" style="margin: 10px;">Current Theme: Light</div>
-  <!-- change the text "current theme: light" into "current theme: dark" -->
-  <script>
-    const themeIndicator = document.getElementById('theme-indicator');
-    const toggleBtn = document.getElementById('toggle-btn');
-    let isDarkMode = false;
-
-    toggleBtn.addEventListener('click', () => {
-      isDarkMode = !isDarkMode;
-      document.body.classList.toggle('dark-mode', isDarkMode);
-      themeIndicator.textContent = `Current Theme: ${isDarkMode ? 'Dark' : 'Light'}`;
-    });
-  </script>
+  <div id="theme-indicator">Current Theme: Light</div>
   <script src="index.js"></script>
 </body>
 </html>
