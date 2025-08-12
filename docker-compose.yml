@@ -1,0 +1,34 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_SE_TOOLS: "true"   # bei Bedarf "false"
+    container_name: html-template-se
+    command: ["npx","vite","--host","0.0.0.0","--port","5173"]
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+      # macOS/Windows: zuverlässigeres File-Watching im Container
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    volumes:
+      # Code live mounten (Hot Reload)
+      - .:/workspace:delegated
+      # node_modules im Container halten (keine root-Dateien auf dem Host)
+      - /workspace/node_modules
+      # Git-Creds vom Host nutzen (optional – gut für git push aus dem Container)
+      - ~/.gitconfig:/root/.gitconfig:ro
+      - ~/.git-credentials:/root/.git-credentials:ro
+    # Optional: als Host-User laufen lassen, um UID/GID-Issues zu vermeiden
+    # user: "${UID:-0}:${GID:-0}"
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -fsS http://localhost:5173 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped

@@ -12,4 +12,13 @@ button {
   padding: 0.5rem 1rem;
   font-size: 1rem;
   cursor: pointer;
+  border: 1px solid black;
+  border-radius: 4px;
+  background-color: #c9c319;
+  color: rgb(62, 62, 56);
+  transition: background 0.3s;
+}
+button:hover {
+  background-color: #a9a30d;
+  border: 1px solid #dee511;
 }
