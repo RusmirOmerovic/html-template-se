@@ -1,0 +1,26 @@
+{
+  "name": "html-template-se",
+  "version": "1.0.0",
+  "description": "HTML/CSS/JS Template mit automatischen Linter- und Formatierungs-Checks",
+  "scripts": {
+    "lint:html": "htmlhint .",
+    "lint:css": "stylelint \"**/*.css\"",
+    "lint:js": "eslint . --max-warnings=0",
+    "lint": "npm run lint:html && npm run lint:css && npm run lint:js",
+    "fmt": "prettier -w .",
+    "fmt:check": "prettier --check .",
+    "test": "echo \"(placeholder for future tests)\" && exit 0"
+  },
+  "devDependencies": {
+    "eslint": "8.57.1",
+    "eslint-config-standard": "17.1.0",
+    "eslint-plugin-import": "2.29.1",
+    "eslint-plugin-n": "16.6.2",
+    "eslint-plugin-promise": "6.4.0",
+    "htmlhint": "1.6.3",
+    "prettier": "3.6.2",
+    "stylelint": "16.23.1",
+    "stylelint-config-recommended": "14.0.1",
+    "stylelint-config-standard": "36.0.1"
+  }
+}
