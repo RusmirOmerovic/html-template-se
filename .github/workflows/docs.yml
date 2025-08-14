@@ -106,6 +106,7 @@ jobs:
           fi
 
       - name: Create Pull Request
+        id: cpr
         if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.missing == 'false'
         uses: peter-evans/create-pull-request@v6
         with:
@@ -119,3 +120,11 @@ jobs:
           add-paths: |
             README.md
             docs/wiki/**
+
+      - name: Enable auto-merge (squash)
+        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.missing == 'false'
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          merge-method: squash
