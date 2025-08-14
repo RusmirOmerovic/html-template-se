@@ -1,10 +1,6 @@
 # html-template-se (develop)
 
-Dies ist die Basisstruktur für das GitHub CI/CD Template `html-template-se`.
-
-- Branch: `develop`
-- Mini-Demo: Dark Mode Toggle mit HTML/CSS/JS
-- Workflows: `.github/workflows/preview.yml` (für Testing + GitHub Pages Preview)
+Dieses Repository dient als Basisstruktur für das GitHub CI/CD Template `html-template-se`.
 
 ## Features
 
@@ -20,21 +16,35 @@ cd html-template-se
 npm install
 ```
 
-## Nutzung
+## Lokaler Start
+
+### Ohne Docker
+
+Öffne `index.html` im Browser, um die Demo zu sehen.
+Führe das Linting aus mit `npm run lint`.
+Um die Dokumentation zu generieren, verwende `node scripts/generate-docs.mjs`.
+
+### Mit Docker
+
+Um die Anwendung in einem Docker-Container zu starten, führe `docker-compose up` aus.
+
+## Nutzung mit Beispielen
+
+Nach der Installation:
 
 - Öffne `index.html` im Browser, um die Demo zu sehen.
-- Linting prüfen: `npm run lint`
-- Dokumentation generieren: `node scripts/generate-docs.mjs` kopiert die README nach `docs/`.
+- Führe das Linting aus mit `npm run lint`.
+- Generiere die Dokumentation mit `node scripts/generate-docs.mjs`.
 
 ## CI/CD
 
-Die GitHub Actions Workflow-Datei `.github/workflows/preview.yml` führt Linting aus und veröffentlicht eine GitHub Pages Preview.
+Der GitHub Actions Workflow `.github/workflows/preview.yml` führt Linting aus und veröffentlicht eine GitHub Pages Preview.
 
 ## Ordnerstruktur
 
 ```
 .
-├── docs/                # generierte Dokumentation
+├── docs/                # Generierte Dokumentation
 ├── scripts/             # Hilfsskripte
 ├── index.html           # Startseite
 ├── index.css            # Styles
@@ -43,10 +53,10 @@ Die GitHub Actions Workflow-Datei `.github/workflows/preview.yml` führt Linting
 └── ...
 ```
 
-## License
+## Beitrag
+
+Fühle dich frei, neue Funktionen im `develop` Branch zu entwickeln, diese in `testing` zu mergen und schließlich in `main` zu veröffentlichen.
+
+## Lizenz
 
 Dieses Projekt steht unter der MIT License. Weitere Details in [LICENSE](LICENSE).
-
-## Nächste Schritte
-
-→ Entwickle neue Funktionen im Branch `develop`, merge nach `testing`, dann nach `main`.
