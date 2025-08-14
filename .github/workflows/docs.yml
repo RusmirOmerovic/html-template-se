@@ -3,7 +3,7 @@ name: Generate Docs (README + Wiki)
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: ['main']
 
 permissions:
   contents: write
@@ -15,82 +15,166 @@ concurrency:
 
 jobs:
   docs:
-    if: ${{ secrets.OPENAI_API_KEY != '' }}
+    name: Build docs with OpenAI and open PR
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Check required secret
+        id: secretcheck
+        run: |
+          if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "OPENAI_API_KEY is missing – skipping docs generation."
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop early if secret is missing
+        if: steps.secretcheck.outputs.missing == 'true'
+        run: |
+          echo "::notice title=Docs skipped::No OPENAI_API_KEY secret configured."
+
+      - name: Checkout repo
+        if: steps.secretcheck.outputs.missing == 'false'
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node (for consistency)
+        if: steps.secretcheck.outputs.missing == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        if: steps.secretcheck.outputs.missing == 'false'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
 
       - name: Collect repository context
+        if: steps.secretcheck.outputs.missing == 'false'
         run: |
-          echo "## REPO TREE" > repo_context.txt
-          ls -R >> repo_context.txt
-          echo -e "\n## README (existing)" >> repo_context.txt
-          [ -f README.md ] && sed -n '1,400p' README.md >> repo_context.txt || true
+          set -euo pipefail
+          {
+            echo "## REPO TREE"
+            ls -la
+            echo
+            echo "## GIT LOG (last 20)"
+            git --no-pager log --oneline -n 20 || true
+            echo
+            echo "## FILE LIST (recursive)"
+            ls -R || true
+            echo
+            echo "## README (existing, first 350 lines)"
+            [ -f README.md ] && sed -n '1,350p' README.md || true
+          } > repo_context.txt
+          echo "Context size:"
+          wc -c repo_context.txt || true
 
-      - name: Generate README.md with OpenAI
+      - name: Generate README with OpenAI
+        if: steps.secretcheck.outputs.missing == 'false'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          BODY=$(jq -Rs . << 'EOF'
-          Du bist ein technischer Redakteur. Lies den Repo-Kontext und
-          erstelle ein präzises, deutschsprachiges README.md für ein HTML/CSS/JS-Template.
-          Abschnitte:
-          - Kurzbeschreibung (2 Absätze)
-          - Features
-          - Schnellstart (Docker & lokal)
-          - npm-Skripte
-          - CI/CD (Branches, Checks, Preview/Prod)
-          - Ordnerstruktur
-          - FAQ/Fehlerbehebung
-          - Lizenz (falls ermittelbar, sonst TODO)
-          Formatiere klar, mit Code-Blocks.
-          EOF
-          )
+          set -euo pipefail
+
+          BODY="Du bist technischer Redakteur. Lies den Repo-Kontext und erstelle ein\n\
+          vollständiges, korrektes, **deutschsprachiges** README.md für dieses Projekt.\n\n\
+          Mindestinhalte:\n\
+          - Kurze Projektbeschreibung (max. 2 Absätze)\n\
+          - Features-Liste\n\
+          - Installation (macOS/Linux)\n\
+          - Lokaler Start (Docker **und** ohne Docker, falls zutreffend)\n\
+          - Nutzung mit Beispielen (npm scripts, Container-Start)\n\
+          - CI/CD-Beschreibung (Preview, Lint/Tests, Releases auf main)\n\
+          - Ordnerstruktur (kurz)\n\
+          - Contribution-Hinweise\n\
+          - Lizenz-Abschnitt (falls nicht ermittelbar: \"TODO: Lizenz ergänzen\")\n\n\
+          Schreibe kompakt, aber informativ. Nutze Markdown-Überschriften und Codeblöcke."
+
           INPUT=$(cat repo_context.txt)
 
-          curl -s https://api.openai.com/v1/responses \
+          RESP=$(curl -sS https://api.openai.com/v1/responses \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg model "gpt-5" --arg prompt "$BODY\n\n$INPUT" --argjson max 4000 \
-                 '{model:$model, input:$prompt, max_output_tokens:$max}')" \
-          | jq -r '.output_text' > README.md
+            -d "$(jq -n --arg model "gpt-5" --arg input "$BODY\n\n---\nREPO-KONTEXT:\n$INPUT" --argjson max_output_tokens 5000 \
+                  '{model:$model, input:$input, max_output_tokens:$max_output_tokens}')" \
+          )
+
+          echo "$RESP" | jq -e '.output_text' > /dev/null
+          echo "$RESP" | jq -r '.output_text' > README.md
+
+          if [ ! -s README.md ]; then
+            echo "README generation returned empty output." >&2
+            exit 1
+          fi
 
       - name: Generate Wiki pages with OpenAI
+        if: steps.secretcheck.outputs.missing == 'false'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          set -euo pipefail
           mkdir -p docs/wiki
+
           gen() {
-            local TOPIC="$1"; local FILE="$2"
-            PROMPT=$(jq -Rs . <<EOF
-            Erstelle eine ausführliche Wiki-Seite: "$TOPIC".
-            Zielgruppe: Entwickler. Nutze den Repo-Kontext.
-            Gliederung mit Überschriften, Codebeispielen, Troubleshooting.
-            EOF
+            local TOPIC="$1"
+            local FILE="$2"
+            local PROMPT
+            PROMPT=$(cat <<'P'
+          Erstelle eine **deutschsprachige** Wiki-Seite zum folgenden Thema.
+          Zielgruppe: Entwickler. Nutze klare Gliederung, kurze Abschnitte,
+          Beispiele (auch Code), häufige Fehler & Troubleshooting.
+
+            Thema:
+            P
             )
-            INPUT=$(cat repo_context.txt)
-            curl -s https://api.openai.com/v1/responses \
-              -H "Authorization: Bearer $OPENAI_API_KEY" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n --arg model "gpt-5" --arg prompt "$PROMPT\n\n$INPUT" --argjson max 6000 \
-                   '{model:$model, input:$prompt, max_output_tokens:$max}')" \
-            | jq -r '.output_text' > "docs/wiki/$FILE"
+            PROMPT="${PROMPT} ${TOPIC}\n\n---\nREPO-KONTEXT:\n$(cat repo_context.txt)"
+
+            RESP=$(curl -sS https://api.openai.com/v1/responses \
+                -H "Authorization: Bearer $OPENAI_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d "$(jq -n --arg model "gpt-5" --arg input "$PROMPT" --argjson max_output_tokens 6000 \
+                '{model:$model, input:$input, max_output_tokens:$max_output_tokens}')" \
+            )
+
+            echo "$RESP" | jq -e '.output_text' > /dev/null
+            echo "$RESP" | jq -r '.output_text' > "docs/wiki/$FILE"
+
+            if [ ! -s "docs/wiki/$FILE" ]; then
+              echo "Wiki generation for '$FILE' returned empty output." >&2
+              exit 1
+            fi
           }
 
-          gen "Installation & Setup (Docker + lokal)" "Installation.md"
-          gen "CI/CD-Workflows & Branch-Strategie"  "CI-CD.md"
-          gen "Projektstruktur & Skripte"           "Structure-and-Scripts.md"
-          gen "Beitragen (Contributing)"            "Contributing.md"
+          gen "Installation & Setup (inkl. Docker Compose und Optionen)" "Installation.md"
+          gen "CI/CD-Workflows (Preview, Lint/Tests, Main-Release, Docs-Automation)" "CI-CD.md"
+          gen "Nutzung & Befehle (npm scripts, Docker-Workflow, Hot-Reload)" "Usage.md"
+          gen "Beitragsregeln (Contributing, Code-Style, PR-Checkliste)" "Contributing.md"
+
+      - name: Prepare docs branch
+        if: steps.secretcheck.outputs.missing == 'false'
+        run: |
+          set -euo pipefail
+          BR="docs/generated-${{ github.run_id }}"
+          git switch -c "$BR"
+          git add README.md docs/wiki || true
+          if git diff --cached --quiet; then
+            echo "No doc changes detected – skipping PR."
+            echo "skip_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_pr=false" >> "$GITHUB_OUTPUT"
+          fi
+        id: prep
 
       - name: Create Pull Request
+        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.missing == 'false'
         uses: peter-evans/create-pull-request@v6
         with:
-          branch: docs/generated
+          branch: docs/generated-${{ github.run_id }}
           commit-message: 'docs: auto-generate README + Wiki'
           title: 'Automatisch generierte Doku (README + Wiki)'
-          body: 'Dieser PR wurde automatisch erstellt. Bitte prüfen.'
+          body: 'Dieser PR wurde automatisch erstellt – bitte prüfen und mergen.'
+          labels: 'automation, docs'
+          signoff: false
