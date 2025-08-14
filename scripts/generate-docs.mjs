@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
 
+// Grab command line arguments, e.g. `wiki` or filtering flags
 const args = process.argv.slice(2)
 
-// Load docs configuration
+// Load docs configuration if present
 const configPath = path.join(process.cwd(), 'docs', 'docs-config.json')
 let config = { includeTemplate: true, templateDirs: [] }
 if (fs.existsSync(configPath)) {
@@ -20,9 +21,10 @@ let includeTemplate = config.includeTemplate
 if (args.includes('--all')) includeTemplate = true
 if (args.includes('--user-only')) includeTemplate = false
 
+// List of directories to treat as templates
 const templateDirs = config.templateDirs || []
 
-// Helper to collect file list
+// Helper to collect file list recursively
 function collectFiles(dir, out = [], base = process.cwd()) {
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   for (const entry of entries) {
@@ -43,8 +45,9 @@ function collectFiles(dir, out = [], base = process.cwd()) {
 // Copy existing README into docs/ for reference
 const srcReadme = path.join(process.cwd(), 'README.md')
 const docsDir = path.join(process.cwd(), 'docs')
-fs.mkdirSync(docsDir, { recursive: true })
+fs.mkdirSync(docsDir, { recursive: true }) // ensure docs directory exists
 if (fs.existsSync(srcReadme)) {
+  // keep a copy of the top-level README for documentation
   fs.copyFileSync(srcReadme, path.join(docsDir, 'README.md'))
 }
 
@@ -62,6 +65,7 @@ function listDirLong(dir) {
     .join('\n')
 }
 
+// Snapshot current repository tree
 const repoTree = listDirLong(process.cwd())
 
 let gitLog = ''
@@ -74,6 +78,7 @@ try {
   // git or simple-git not available
 }
 
+// Collect and sort list of all files for context
 const files = collectFiles(process.cwd()).sort().join('\n')
 
 let readmeSnippet = ''
@@ -98,6 +103,7 @@ const context = [
   '',
 ].join('\n')
 
+// Persist collected context for inspection by other scripts
 fs.writeFileSync('repo_context.txt', context)
 console.log('Context written to repo_context.txt')
 
@@ -183,6 +189,7 @@ function buildWiki() {
   if (fs.existsSync(gitkeep)) fs.unlinkSync(gitkeep)
 }
 
+// When called with the `wiki` argument, render markdown wiki pages
 if (args.includes('wiki')) {
   buildWiki()
   console.log('Wiki pages written to docs/wiki')
