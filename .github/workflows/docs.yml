@@ -88,7 +88,7 @@ jobs:
       - name: Push Wiki
         if: steps.secretcheck.outputs.missing == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -105,18 +105,16 @@ jobs:
           rm -rf wiki-repo
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
 
-          # Sanity: ensure it's a real git repo
-          [ -d wiki-repo/.git ] || { echo "::error ::wiki-repo has no .git"; exit 1; }
-          git -C wiki-repo rev-parse --is-inside-work-tree
+          # Sanity check repo + FORCE wiki remote
+          test -d wiki-repo/.git
+          git -C wiki-repo remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          echo "Wiki remote is:"
+          git -C wiki-repo remote -v
 
-          # Sync files into the wiki repo
+          # Sync files
           rsync -a --delete docs/wiki/ wiki-repo/
 
-          # Show state (inside wiki-repo only)
-          ls -la wiki-repo || true
-          git -C wiki-repo status --porcelain || true
-
-          # Stage, commit, push inside wiki-repo (never touch parent repo)
+          # Commit & push strictly inside wiki-repo
           git -C wiki-repo add -A
           if git -C wiki-repo diff --cached --quiet; then
             echo "No wiki changes to commit"
@@ -124,6 +122,7 @@ jobs:
           fi
           git -C wiki-repo commit -m "docs: update Wiki from workflow"
           git -C wiki-repo push origin HEAD
+
 
       - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.missing == 'false'
