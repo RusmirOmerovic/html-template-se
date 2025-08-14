@@ -103,15 +103,11 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           rm -rf wiki-repo
-          mkdir -p wiki-repo
-          git -C wiki-repo init
-          git -C wiki-repo remote add origin "$WIKI_REMOTE" || git -C wiki-repo remote set-url origin "$WIKI_REMOTE"
-
-          git -C wiki-repo fetch origin || true
+          git clone "$WIKI_REMOTE" wiki-repo
 
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
-          if [ -z "${DEFAULT_BRANCH:-}" ]; then
-            if git -C wiki-repo rev-parse --verify origin/master >/dev/null 2>&1; then
+          if [ -z "${DEFAULT_BRANCH}" ]; then
+            if git -C wiki-repo show-ref --verify --quiet refs/remotes/origin/master; then
               DEFAULT_BRANCH="master"
             else
               DEFAULT_BRANCH="main"
@@ -119,13 +115,10 @@ jobs:
           fi
           echo "Wiki default branch detected: ${DEFAULT_BRANCH}"
 
-          if git -C wiki-repo rev-parse --verify "origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
-            git -C wiki-repo checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
-          else
-            git -C wiki-repo checkout --orphan "${DEFAULT_BRANCH}"
-            rm -rf wiki-repo/*
-            git -C wiki-repo commit --allow-empty -m "init wiki"
-          fi
+          git -C wiki-repo checkout "${DEFAULT_BRANCH}" || git -C wiki-repo checkout -b "${DEFAULT_BRANCH}"
+
+          # Lokalen Branch-Namen angleichen
+          git -C wiki-repo branch -M "${DEFAULT_BRANCH}"
 
           rsync -a --delete docs/wiki/ wiki-repo/
 
