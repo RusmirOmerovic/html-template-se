@@ -108,6 +108,10 @@ jobs:
         if: steps.secretcheck.outputs.missing == 'false'
         run: npm run docs:wiki
 
+      - name: Format README and Wiki
+        if: steps.secretcheck.outputs.missing == 'false'
+        run: npm run fmt README.md docs/wiki
+
       - name: Prepare docs branch
         if: steps.secretcheck.outputs.missing == 'false'
         run: |
