@@ -36,3 +36,10 @@ docker-compose.override.yml
 
 # macOS
 *.DS_Store
+
+# runtime/temp
+wiki-repo/
+repo_context.txt
+
+# safety
+docs 2/
