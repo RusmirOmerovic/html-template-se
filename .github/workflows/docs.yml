@@ -3,7 +3,7 @@ name: Generate Docs (README + Wiki)
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: ['main']
 
 permissions:
   contents: write
@@ -44,7 +44,7 @@ jobs:
         if: steps.secretcheck.outputs.missing == 'false'
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
 
       - name: Install jq
         if: steps.secretcheck.outputs.missing == 'false'
@@ -130,14 +130,14 @@ jobs:
             Thema:
             P
             )
-                        PROMPT="${PROMPT} ${TOPIC}\n\n---\nREPO-KONTEXT:\n$(cat repo_context.txt)"
+            PROMPT="${PROMPT} ${TOPIC}\n\n---\nREPO-KONTEXT:\n$(cat repo_context.txt)"
 
-                        RESP=$(curl -sS https://api.openai.com/v1/responses \
-                          -H "Authorization: Bearer $OPENAI_API_KEY" \
-                          -H "Content-Type: application/json" \
-                          -d "$(jq -n --arg model "gpt-5" --arg input "$PROMPT" --argjson max_output_tokens 6000 \
-                                '{model:$model, input:$input, max_output_tokens:$max_output_tokens}')" \
-                        )
+            RESP=$(curl -sS https://api.openai.com/v1/responses \
+                -H "Authorization: Bearer $OPENAI_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d "$(jq -n --arg model "gpt-5" --arg input "$PROMPT" --argjson max_output_tokens 6000 \
+                '{model:$model, input:$input, max_output_tokens:$max_output_tokens}')" \
+            )
 
             echo "$RESP" | jq -e '.output_text' > /dev/null
             echo "$RESP" | jq -r '.output_text' > "docs/wiki/$FILE"
@@ -173,8 +173,8 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           branch: docs/generated-${{ github.run_id }}
-          commit-message: "docs: auto-generate README + Wiki"
-          title: "Automatisch generierte Doku (README + Wiki)"
-          body: "Dieser PR wurde automatisch erstellt – bitte prüfen und mergen."
-          labels: "automation, docs"
+          commit-message: 'docs: auto-generate README + Wiki'
+          title: 'Automatisch generierte Doku (README + Wiki)'
+          body: 'Dieser PR wurde automatisch erstellt – bitte prüfen und mergen.'
+          labels: 'automation, docs'
           signoff: false
