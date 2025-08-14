@@ -29,6 +29,9 @@ jobs:
             npm install --legacy-peer-deps
           fi
 
+      - name: Security audit
+        run: npm audit --audit-level=moderate
+
       # ---- Linting & Format ----
       - name: Lint HTML
         run: npm run lint:html
