@@ -2,25 +2,25 @@
 
 HTML/CSS/JS Template mit automatischen Linter- und Formatierungs-Checks
 
-| Metadatum       | Wert  |
-| --------------- | ----- |
-| Version         | 1.0.0 |
-| Kommentarzeilen | 1     |
+👉 Siehe den [Styleguide](../style-guide.md).
+
+| Metadatum | Wert |
+|---|---|
+| Version | 1.0.0 |
+| Kommentarzeilen | 1 |
 
 > change the text "current theme: light" into "current theme: dark"
 
 ## Architektur
+| Datei | Beschreibung |
+|---|---|
+| `index.html` | Einstieg & Markup |
+| `index.css` | Basis-Styling |
+| `index.js` | Theme-Toggle-Logik |
 
-| Datei        | Beschreibung       |
-| ------------ | ------------------ |
-| `index.html` | Einstieg & Markup  |
-| `index.css`  | Basis-Styling      |
-| `index.js`   | Theme-Toggle-Logik |
-
-<span style="color:green">Dieses Wiki wird automatisch aus dem Code erzeugt.</span>
+![Autogeneriert](https://img.shields.io/badge/Autogeneriert-green)
 
 ## Kapitel
-
 - [[Installation]]
 - [[Usage]]
 - [[CI-CD]]

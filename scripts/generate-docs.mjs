@@ -85,6 +85,12 @@ console.log('Context written to repo_context.txt')
 
 // --- Wiki generation -------------------------------------------------------
 
+// Predefined Markdown components
+const md = {
+  warning: (text) => `> [!WARNING]\n> ${text}\n`,
+  tip: (text) => `> [!TIP]\n> ${text}\n`,
+}
+
 /**
  * Extract single line comments from the given files.
  * Currently supports "//" comments in JS files.
@@ -133,11 +139,11 @@ function buildWiki() {
     '| `index.js` | Theme-Toggle-Logik |',
   ].join('\n')
 
-  const homeContent = `# Wiki – ${pkg.name || ''}\n\n${pkg.description || ''}\n\n| Metadatum | Wert |\n|---|---|\n| Version | ${
+  const homeContent = `# Wiki – ${pkg.name || ''}\n\n${pkg.description || ''}\n\n\uD83D\uDC49 Siehe den [Styleguide](../style-guide.md).\n\n| Metadatum | Wert |\n|---|---|\n| Version | ${
     pkg.version || '0.0.0'
-  } |\n| Kommentarzeilen | ${comments.length} |\n\n${commentBlock}\n\n## Architektur\n${architectureTable}\n\n<span style="color:green">Dieses Wiki wird automatisch aus dem Code erzeugt.</span>\n\n## Kapitel\n- [[Installation]]\n- [[Usage]]\n- [[CI-CD]]\n- [[Contributing]]\n`
+  } |\n| Kommentarzeilen | ${comments.length} |\n\n${commentBlock}\n\n## Architektur\n${architectureTable}\n\n![Autogeneriert](https://img.shields.io/badge/Autogeneriert-green)\n\n## Kapitel\n- [[Installation]]\n- [[Usage]]\n- [[CI-CD]]\n- [[Contributing]]\n`
 
-  const installContent = `# Installation ⚙️\n\n| Befehl | Zweck |\n|---|---|\n| \`npm install\` | Dependencies installieren |\n| \`npm run lint\` | Linting ausführen |\n\n<span style="color:orange">Tipp:</span> Node.js \>= 20 verwenden.\n`
+  const installContent = `# Installation ⚙️\n\n| Befehl | Zweck |\n|---|---|\n| \`npm install\` | Dependencies installieren |\n| \`npm run lint\` | Linting ausführen |\n\n${md.tip('Node.js >= 20 verwenden.')}\n`
 
   const cicdTable = [
     '| Workflow | Beschreibung |',
@@ -153,7 +159,7 @@ function buildWiki() {
     .readFileSync('index.js', 'utf8')
     .trim()}\n\`\`\`\n`
 
-  const contribContent = `# Contributing 🤝\n\n1. Fork & Branch anlegen\n2. Tests/Linter laufen lassen\n3. Pull Request erstellen\n\n<span style="color:blue">Bitte Prettier und ESLint beachten.</span>\n`
+  const contribContent = `# Contributing 🤝\n\n${md.warning('Direkte Commits auf main sind nicht erlaubt.')}1. Fork & Branch anlegen\n2. Tests/Linter laufen lassen\n3. Pull Request erstellen\n\n${md.tip('Bitte Prettier und ESLint beachten.')}\nSiehe den [Styleguide](../style-guide.md).\n`
 
   fs.writeFileSync(path.join(wikiDir, 'Home.md'), homeContent)
   fs.writeFileSync(path.join(wikiDir, 'Installation.md'), installContent)

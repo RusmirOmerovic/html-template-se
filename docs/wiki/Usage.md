@@ -1,9 +1,8 @@
 # Usage ▶️
 
 ## Skripte
-
 | `lint:html` | htmlhint . |
-| `lint:css` | stylelint "\*_/_.css" |
+| `lint:css` | stylelint "**/*.css" |
 | `lint:js` | eslint . --max-warnings=0 |
 | `lint` | npm run lint:html && npm run lint:css && npm run lint:js |
 | `fmt` | prettier -w . |

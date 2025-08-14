@@ -18,6 +18,10 @@ Kopiere die README in das Verzeichnis `docs`:
 node scripts/generate-docs.mjs
 ```
 
+## Styleguide
+
+Siehe [docs/style-guide.md](docs/style-guide.md) für Schreib- und Formatierungsregeln.
+
 ## Nächste Schritte
 
 → Entwickle neue Funktionen im Branch `develop`, merge nach `testing`, dann nach `main`.
