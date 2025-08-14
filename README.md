@@ -10,7 +10,7 @@ Dieses Repository dient als Basisstruktur für das GitHub CI/CD Template `html-t
 
 ## Installation
 
-Zur Installation des Templates auf macOS/Linux:
+Um das Template auf macOS/Linux zu installieren, führe folgende Schritte aus:
 
 ```bash
 git clone <repo>
@@ -20,7 +20,7 @@ npm install
 
 ## Lokaler Start
 
-Um die Demo lokal zu starten, kannst du einfach die `index.html` im Browser öffnen. Für Linting-Prüfungen nutze `npm run lint`. Die Dokumentation kann mit `node scripts/generate-docs.mjs` generiert werden, wodurch die README in den `docs/`-Ordner kopiert wird.
+Für den lokalen Start der Demo öffne einfach die `index.html` im Browser. Führe Linting-Prüfungen mit `npm run lint` durch. Die Dokumentation kann mit `node scripts/generate-docs.mjs` generiert werden, wodurch die README in den `docs/`-Ordner kopiert wird.
 
 ## Nutzung
 
