@@ -82,3 +82,90 @@ const context = [
 
 fs.writeFileSync('repo_context.txt', context)
 console.log('Context written to repo_context.txt')
+
+// --- Wiki generation -------------------------------------------------------
+
+/**
+ * Extract single line comments from the given files.
+ * Currently supports "//" comments in JS files.
+ * @param {string[]} filePaths
+ * @returns {string[]}
+ */
+function extractComments(filePaths) {
+  const comments = []
+  for (const file of filePaths) {
+    if (!fs.existsSync(file)) continue
+    const content = fs.readFileSync(file, 'utf8')
+    for (const line of content.split('\n')) {
+      const m = line.match(/\s*\/\/\s?(.*)/)
+      if (m) comments.push(m[1].trim())
+    }
+  }
+  return comments
+}
+
+/**
+ * Build simple developer wiki based on package metadata and code comments.
+ * Generated pages: Home, Installation, CI-CD, Usage, Contributing.
+ */
+function buildWiki() {
+  const wikiDir = path.join(docsDir, 'wiki')
+  fs.mkdirSync(wikiDir, { recursive: true })
+
+  // Load package metadata
+  let pkg = {}
+  try {
+    pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+  } catch {}
+
+  const comments = extractComments(['index.js'])
+  const commentBlock = comments.map((c) => `> ${c}`).join('\n')
+
+  const scriptsTable = Object.entries(pkg.scripts || {})
+    .map(([k, v]) => `| \`${k}\` | ${v} |`)
+    .join('\n')
+
+  const architectureTable = [
+    '| Datei | Beschreibung |',
+    '|---|---|',
+    '| `index.html` | Einstieg & Markup |',
+    '| `index.css` | Basis-Styling |',
+    '| `index.js` | Theme-Toggle-Logik |',
+  ].join('\n')
+
+  const homeContent = `# Wiki – ${pkg.name || ''}\n\n${pkg.description || ''}\n\n| Metadatum | Wert |\n|---|---|\n| Version | ${
+    pkg.version || '0.0.0'
+  } |\n| Kommentarzeilen | ${comments.length} |\n\n${commentBlock}\n\n## Architektur\n${architectureTable}\n\n<span style="color:green">Dieses Wiki wird automatisch aus dem Code erzeugt.</span>\n\n## Kapitel\n- [[Installation]]\n- [[Usage]]\n- [[CI-CD]]\n- [[Contributing]]\n`
+
+  const installContent = `# Installation ⚙️\n\n| Befehl | Zweck |\n|---|---|\n| \`npm install\` | Dependencies installieren |\n| \`npm run lint\` | Linting ausführen |\n\n<span style="color:orange">Tipp:</span> Node.js \>= 20 verwenden.\n`
+
+  const cicdTable = [
+    '| Workflow | Beschreibung |',
+    '|---|---|',
+    '| `ci.yml` | Linting und Tests |',
+    '| `preview.yml` | Docker-Preview |',
+    '| `docs.yml` | Doku-Automatisierung |',
+  ].join('\n')
+
+  const cicdContent = `# CI/CD 🤖\n\n${cicdTable}\n\n<span style="color:purple">Automatisierte Abläufe sorgen für Qualität.</span>\n`
+
+  const usageContent = `# Usage ▶️\n\n## Skripte\n${scriptsTable}\n\n### Theme-Toggle Beispiel\n\n\`\`\`js\n${fs
+    .readFileSync('index.js', 'utf8')
+    .trim()}\n\`\`\`\n`
+
+  const contribContent = `# Contributing 🤝\n\n1. Fork & Branch anlegen\n2. Tests/Linter laufen lassen\n3. Pull Request erstellen\n\n<span style="color:blue">Bitte Prettier und ESLint beachten.</span>\n`
+
+  fs.writeFileSync(path.join(wikiDir, 'Home.md'), homeContent)
+  fs.writeFileSync(path.join(wikiDir, 'Installation.md'), installContent)
+  fs.writeFileSync(path.join(wikiDir, 'CI-CD.md'), cicdContent)
+  fs.writeFileSync(path.join(wikiDir, 'Usage.md'), usageContent)
+  fs.writeFileSync(path.join(wikiDir, 'Contributing.md'), contribContent)
+  // remove empty placeholder if present
+  const gitkeep = path.join(wikiDir, '.gitkeep')
+  if (fs.existsSync(gitkeep)) fs.unlinkSync(gitkeep)
+}
+
+if (args.includes('wiki')) {
+  buildWiki()
+  console.log('Wiki pages written to docs/wiki')
+}

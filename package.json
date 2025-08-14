@@ -9,7 +9,8 @@
     "lint": "npm run lint:html && npm run lint:css && npm run lint:js",
     "fmt": "prettier -w .",
     "fmt:check": "prettier --check .",
-    "test": "echo \"(placeholder for future tests)\" && exit 0"
+    "test": "echo \"(placeholder for future tests)\" && exit 0",
+    "docs:wiki": "node scripts/generate-docs.mjs wiki"
   },
   "devDependencies": {
     "eslint": "8.57.1",
