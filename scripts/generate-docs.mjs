@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
+import { extractComments } from './extract-comments.mjs'
 
 const args = process.argv.slice(2)
 
@@ -86,25 +87,6 @@ console.log('Context written to repo_context.txt')
 // --- Wiki generation -------------------------------------------------------
 
 /**
- * Extract single line comments from the given files.
- * Currently supports "//" comments in JS files.
- * @param {string[]} filePaths
- * @returns {string[]}
- */
-function extractComments(filePaths) {
-  const comments = []
-  for (const file of filePaths) {
-    if (!fs.existsSync(file)) continue
-    const content = fs.readFileSync(file, 'utf8')
-    for (const line of content.split('\n')) {
-      const m = line.match(/\s*\/\/\s?(.*)/)
-      if (m) comments.push(m[1].trim())
-    }
-  }
-  return comments
-}
-
-/**
  * Build simple developer wiki based on package metadata and code comments.
  * Generated pages: Home, Installation, CI-CD, Usage, Contributing.
  */
@@ -118,8 +100,29 @@ function buildWiki() {
     pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
   } catch {}
 
-  const comments = extractComments(['index.js'])
-  const commentBlock = comments.map((c) => `> ${c}`).join('\n')
+  const allSourceFiles = collectFiles(process.cwd()).filter((f) =>
+    /\.(?:js|mjs|cjs|html|css)$/.test(f)
+  )
+  const commentData = extractComments(allSourceFiles)
+  fs.writeFileSync(
+    path.join(docsDir, 'comments.json'),
+    JSON.stringify(commentData, null, 2)
+  )
+  const totalComments = Object.values(commentData).reduce(
+    (sum, info) => sum + info.comments.length + info.blocks.length,
+    0
+  )
+  const commentBlock = Object.entries(commentData)
+    .flatMap(([file, info]) => {
+      const blockLines = info.blocks.map(
+        (b) => `- **${file}** → ${b.name}: ${b.comment}`
+      )
+      const lineComments = info.comments.map(
+        (c) => `- **${file}:${c.line}** ${c.text}`
+      )
+      return [...blockLines, ...lineComments]
+    })
+    .join('\n')
 
   const scriptsTable = Object.entries(pkg.scripts || {})
     .map(([k, v]) => `| \`${k}\` | ${v} |`)
@@ -133,9 +136,11 @@ function buildWiki() {
     '| `index.js` | Theme-Toggle-Logik |',
   ].join('\n')
 
-  const homeContent = `# Wiki – ${pkg.name || ''}\n\n${pkg.description || ''}\n\n| Metadatum | Wert |\n|---|---|\n| Version | ${
+  const homeContent = `# Wiki – ${pkg.name || ''}\n\n${
+    pkg.description || ''
+  }\n\n| Metadatum | Wert |\n|---|---|\n| Version | ${
     pkg.version || '0.0.0'
-  } |\n| Kommentarzeilen | ${comments.length} |\n\n${commentBlock}\n\n## Architektur\n${architectureTable}\n\n<span style="color:green">Dieses Wiki wird automatisch aus dem Code erzeugt.</span>\n\n## Kapitel\n- [[Installation]]\n- [[Usage]]\n- [[CI-CD]]\n- [[Contributing]]\n`
+  } |\n| Kommentarzeilen | ${totalComments} |\n\n${commentBlock}\n\n## Architektur\n${architectureTable}\n\n<span style="color:green">Dieses Wiki wird automatisch aus dem Code erzeugt.</span>\n\n## Kapitel\n- [[Installation]]\n- [[Usage]]\n- [[CI-CD]]\n- [[Contributing]]\n`
 
   const installContent = `# Installation ⚙️\n\n| Befehl | Zweck |\n|---|---|\n| \`npm install\` | Dependencies installieren |\n| \`npm run lint\` | Linting ausführen |\n\n<span style="color:orange">Tipp:</span> Node.js \>= 20 verwenden.\n`
 
