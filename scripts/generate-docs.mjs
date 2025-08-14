@@ -49,12 +49,30 @@ if (fs.existsSync(srcReadme)) {
 }
 
 // Build repository context similar to previous workflow step
-let repoTree = ''
+function listDirLong(dir) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+  return entries
+    .map((entry) => {
+      const stats = fs.statSync(path.join(dir, entry.name))
+      const type = entry.isDirectory() ? 'd' : '-'
+      const size = stats.size.toString().padStart(8)
+      const mtime = stats.mtime.toISOString()
+      return `${type} ${size} ${mtime} ${entry.name}`
+    })
+    .join('\n')
+}
+
+const repoTree = listDirLong(process.cwd())
+
 let gitLog = ''
 try {
-  repoTree = execSync('ls -la', { encoding: 'utf8' })
-  gitLog = execSync('git --no-pager log --oneline -n 20 || true', { encoding: 'utf8' })
-} catch {}
+  const { default: simpleGit } = await import('simple-git')
+  const git = simpleGit()
+  const log = await git.log({ n: 20 })
+  gitLog = log.all.map((c) => `${c.hash.substring(0, 7)} ${c.message}`).join('\n')
+} catch {
+  // git or simple-git not available
+}
 
 const files = collectFiles(process.cwd()).sort().join('\n')
 
