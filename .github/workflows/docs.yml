@@ -88,41 +88,51 @@ jobs:
       - name: Push Wiki
         if: steps.secretcheck.outputs.missing == 'false'
         env:
-            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          # Abort if nothing generated
+          # 0) Gibt's überhaupt Inhalte?
           if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
             echo "No wiki content to push."
             exit 0
           fi
 
+          WIKI_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Fresh clone
+          # 1) Saubere Arbeitskopie vorbereiten (KEIN Clone des Haupt-Repos)
           rm -rf wiki-repo
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
+          mkdir -p wiki-repo/.git
+          git -C wiki-repo init
 
-          # Sanity check repo + FORCE wiki remote
-          test -d wiki-repo/.git
-          git -C wiki-repo remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
-          echo "Wiki remote is:"
+          # 2) Remote setzen und ggf. vorhandenen Stand holen
+          git -C wiki-repo remote add origin "$WIKI_REMOTE" || git -C wiki-repo remote set-url origin "$WIKI_REMOTE"
           git -C wiki-repo remote -v
+          # Versuche main zu holen; wenn Wiki leer ist, fetch schlägt evtl. fehl -> ignorieren
+          git -C wiki-repo fetch origin || true
+          # Checkout von main, andernfalls orphan-main
+          if git -C wiki-repo rev-parse --verify origin/main >/dev/null 2>&1; then
+            git -C wiki-repo checkout -B main origin/main
+          else
+            git -C wiki-repo checkout --orphan main
+            rm -rf wiki-repo/*
+            git -C wiki-repo commit --allow-empty -m "init wiki"
+          fi
 
-          # Sync files
+          # 3) Inhalte spiegeln
           rsync -a --delete docs/wiki/ wiki-repo/
 
-          # Commit & push strictly inside wiki-repo
+          # 4) Commit & Push NUR ins Wiki-Repo
           git -C wiki-repo add -A
           if git -C wiki-repo diff --cached --quiet; then
             echo "No wiki changes to commit"
             exit 0
           fi
           git -C wiki-repo commit -m "docs: update Wiki from workflow"
-          git -C wiki-repo push origin HEAD
-
+          git -C wiki-repo push "$WIKI_REMOTE" main:main
 
       - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.missing == 'false'
