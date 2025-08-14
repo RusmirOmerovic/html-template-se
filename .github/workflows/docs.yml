@@ -36,8 +36,7 @@ jobs:
 
       - name: Stop early if secret is missing
         if: steps.secretcheck.outputs.missing == 'true'
-        run: |
-          echo "::notice title=Docs skipped::No OPENAI_API_KEY secret configured."
+        run: echo "::notice title=Docs skipped::No OPENAI_API_KEY secret configured."
 
       - name: Checkout repo
         if: steps.secretcheck.outputs.missing == 'false'
@@ -64,15 +63,13 @@ jobs:
             npm install
           fi
 
-
       - name: Collect repository context
         if: steps.secretcheck.outputs.missing == 'false'
         run: |
           set -euo pipefail
           FLAG=${{ github.event.inputs.include-template == 'true' && '--all' || '--user-only' }}
           node scripts/generate-docs.mjs $FLAG
-          echo "Context size:"
-          wc -c repo_context.txt || true
+          echo "Context size:" && wc -c repo_context.txt || true
 
       - name: Generate README with OpenAI (scripted)
         if: steps.secretcheck.outputs.missing == 'false'
@@ -88,14 +85,37 @@ jobs:
         if: steps.secretcheck.outputs.missing == 'false'
         run: npm run fmt README.md docs/wiki
 
+      - name: Push Wiki
+        if: steps.secretcheck.outputs.missing == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
+            echo "No wiki content to push."
+            exit 0
+          fi
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Authentifiziertes Wiki-Repo klonen
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
+
+          # Dateien übernehmen
+          rsync -a --delete docs/wiki/ wiki-repo/
+
+          cd wiki-repo
+          git add .
+          git commit -m "docs: update Wiki from workflow" || { echo "No wiki changes to commit"; exit 0; }
+          git push
+
       - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.missing == 'false'
         id: prep
         run: |
-          run: |
           set -euo pipefail
           BR="docs/generated-${{ github.run_id }}"
-          # Nur Dateien zum Commit vormerken – NICHT den Branch wechseln!
           git add README.md docs/wiki || true
           if git diff --cached --quiet; then
             echo "No doc changes detected – skipping PR."
