@@ -101,17 +101,20 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Sicherstellen, dass kein altes wiki-repo-Verzeichnis existiert
+          rm -rf wiki-repo
+
           # Authentifiziertes Wiki-Repo klonen
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
 
           # Dateien übernehmen (spiegeln)
           rsync -a --delete docs/wiki/ wiki-repo/
 
-          # WICHTIG: Git-Kommandos gezielt im Wiki-Repo ausführen
+          # Commit und Push im Wiki-Repo
           git -C wiki-repo add .
           git -C wiki-repo commit -m "docs: update Wiki from workflow" || { echo "No wiki changes to commit"; exit 0; }
-          # In Wiki einfach HEAD pushen (kein Branchname nötig)
           git -C wiki-repo push origin HEAD
+
 
 
       - name: Prepare docs branch (no checkout/switch)
