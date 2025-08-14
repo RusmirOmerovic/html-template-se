@@ -44,14 +44,14 @@ const EXCLUDES = [
   '.vercel',
   'coverage',
   'docs/wiki', // Wiki wird ja generiert – nicht in Kontext packen
-  '.DS_Store'
+  '.DS_Store',
 ]
 
-function isExcluded (relPath) {
+function isExcluded(relPath) {
   return EXCLUDES.some((p) => relPath === p || relPath.startsWith(p + path.sep))
 }
 
-function safeStat (p) {
+function safeStat(p) {
   try {
     return fs.statSync(p)
   } catch {
@@ -59,7 +59,7 @@ function safeStat (p) {
   }
 }
 
-function listDirLong (dir) {
+function listDirLong(dir) {
   const out = []
   let entries = []
   try {
@@ -79,7 +79,7 @@ function listDirLong (dir) {
   return out.join('\n')
 }
 
-function collectFiles (dir, out = [], base = CWD) {
+function collectFiles(dir, out = [], base = CWD) {
   let entries = []
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -107,7 +107,7 @@ function collectFiles (dir, out = [], base = CWD) {
   return out
 }
 
-function safeRead (file, maxLines = null) {
+function safeRead(file, maxLines = null) {
   try {
     let txt = fs.readFileSync(file, 'utf8')
     if (maxLines != null) {
@@ -160,7 +160,7 @@ let context = [
   '',
   '## README (existing, first 350 lines)',
   readmeSnippet.trim(),
-  ''
+  '',
 ].join('\n')
 
 // Kontext-Limit (ca. 200 KB), um API-400er zu vermeiden
@@ -187,7 +187,7 @@ console.log(`Context written to repo_context.txt (${Buffer.byteLength(context, '
 // -----------------------------
 // Wiki-Generierung
 // -----------------------------
-function extractComments (filePaths) {
+function extractComments(filePaths) {
   const comments = []
   for (const file of filePaths) {
     if (!fs.existsSync(file)) continue
@@ -200,7 +200,7 @@ function extractComments (filePaths) {
   return comments
 }
 
-function buildWiki () {
+function buildWiki() {
   const wikiDir = path.join(docsDir, 'wiki')
   fs.mkdirSync(wikiDir, { recursive: true })
 
@@ -216,9 +216,10 @@ function buildWiki () {
   const commentBlock = comments.map((c) => `> ${c}`).join('\n')
 
   // Scripts-Tabelle
-  const scriptsTable = Object.entries(pkg.scripts || {})
-    .map(([k, v]) => `| \`${k}\` | ${v} |`)
-    .join('\n') || '| (keine) | - |'
+  const scriptsTable =
+    Object.entries(pkg.scripts || {})
+      .map(([k, v]) => `| \`${k}\` | ${v} |`)
+      .join('\n') || '| (keine) | - |'
 
   // Architektur-Tabelle
   const architectureTable = [
@@ -226,7 +227,7 @@ function buildWiki () {
     '|---|---|',
     '| `index.html` | Einstieg & Markup |',
     '| `index.css` | Basis-Styling |',
-    '| `index.js` | Theme-Toggle-Logik |'
+    '| `index.js` | Theme-Toggle-Logik |',
   ].join('\n')
 
   // CI/CD-Workflows dynamisch einlesen
@@ -239,7 +240,11 @@ function buildWiki () {
       }
     }
   }
-  const cicdTable = ['| Workflow | Beschreibung |', '|---|---|', ...(cicdRows.length ? cicdRows : ['| (keiner) | - |'])].join('\n')
+  const cicdTable = [
+    '| Workflow | Beschreibung |',
+    '|---|---|',
+    ...(cicdRows.length ? cicdRows : ['| (keiner) | - |']),
+  ].join('\n')
 
   // Inhalte
   const homeContent = `# Wiki – ${pkg.name || ''}
@@ -275,7 +280,9 @@ ${architectureTable}
 <span style="color:orange">Tipp:</span> Node.js \\>= 20 verwenden.
 `
 
-  const usageJs = fs.existsSync('index.js') ? safeRead('index.js').trim() : '// (keine index.js gefunden)'
+  const usageJs = fs.existsSync('index.js')
+    ? safeRead('index.js').trim()
+    : '// (keine index.js gefunden)'
   const usageContent = `# Usage ▶️
 
 ## Skripte
