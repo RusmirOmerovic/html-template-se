@@ -15,7 +15,5 @@ test('toggles dark mode on button click', () => {
   button.click()
 
   expect(document.body.classList.contains('dark')).toBe(true)
-  expect(document.getElementById('theme-indicator').textContent).toBe(
-    'Current Theme: Dark'
-  )
+  expect(document.getElementById('theme-indicator').textContent).toBe('Current Theme: Dark')
 })
