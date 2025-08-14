@@ -1,3 +1,4 @@
+/* Base page layout and smooth theme transition */
 body {
   font-family: sans-serif;
   text-align: center;
@@ -5,11 +6,13 @@ body {
   transition: 0.3s;
 }
 
+/* Dark theme overrides when the body has the `dark` class */
 body.dark {
   background-color: #222;
   color: #fff;
 }
 
+/* Primary button styling */
 button {
   padding: 0.5rem 1rem;
   font-size: 1rem;
@@ -22,6 +25,7 @@ button {
   margin: 15px;
 }
 
+/* Slightly darken the button on hover */
 button:hover {
   background-color: #a9a30d;
   border: 1px solid #dee511;
