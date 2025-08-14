@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "HTML/CSS/JS Template mit automatischen Linter- und Formatierungs-Checks",
   "scripts": {
-    "lint:html": "htmlhint .",
-    "lint:css": "stylelint \"**/*.css\"",
-    "lint:js": "eslint . --max-warnings=0",
+    "lint:html": "htmlhint . docs docs/wiki",
+    "lint:css": "stylelint \"**/*.css\" \"docs/**/*.css\" \"docs/wiki/**/*.css\"",
+    "lint:js": "eslint . docs docs/wiki --no-error-on-unmatched-pattern --max-warnings=0",
     "lint": "npm run lint:html && npm run lint:css && npm run lint:js",
     "fmt": "prettier -w .",
     "fmt:check": "prettier --check .",
