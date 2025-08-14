@@ -45,3 +45,5 @@ jobs:
       # ---- Tests (falls vorhanden) ----
       - name: Unit tests
         run: npm test --if-present
+      - name: Format
+        run: npm run fmt
