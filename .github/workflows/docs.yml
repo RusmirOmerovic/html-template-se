@@ -88,32 +88,34 @@ jobs:
         if: steps.secretcheck.outputs.missing == 'false'
         run: npm run fmt README.md docs/wiki
 
-      - name: Prepare docs branch
+      - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.missing == 'false'
+        id: prep
         run: |
-          if [ ! -s README.md ]; then
-            echo "::error title=README fehlt::README.md wurde nicht erzeugt oder ist leer."
-            exit 1
-          fi
+          run: |
           set -euo pipefail
           BR="docs/generated-${{ github.run_id }}"
-          git switch -c "$BR"
+          # Nur Dateien zum Commit vormerken – NICHT den Branch wechseln!
           git add README.md docs/wiki || true
           if git diff --cached --quiet; then
             echo "No doc changes detected – skipping PR."
             echo "skip_pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip_pr=false" >> "$GITHUB_OUTPUT"
+            echo "branch=$BR" >> "$GITHUB_OUTPUT"
           fi
-        id: prep
 
       - name: Create Pull Request
         if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.missing == 'false'
         uses: peter-evans/create-pull-request@v6
         with:
-          branch: docs/generated-${{ github.run_id }}
+          base: main
+          branch: ${{ steps.prep.outputs.branch }}
           commit-message: 'docs: auto-generate README + Wiki'
           title: 'Automatisch generierte Doku (README + Wiki)'
           body: 'Dieser PR wurde automatisch erstellt – bitte prüfen und mergen.'
           labels: 'automation, docs'
           signoff: false
+          add-paths: |
+            README.md
+            docs/wiki/**
