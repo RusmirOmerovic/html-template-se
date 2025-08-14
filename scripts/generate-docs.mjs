@@ -2,11 +2,20 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
 
-// Grab command line arguments, e.g. `wiki` or filtering flags
+// -----------------------------
+// CLI-Args & Konfiguration
+// -----------------------------
 const args = process.argv.slice(2)
+const CWD = process.cwd()
+const docsDir = path.join(CWD, 'docs')
+const configPath = path.join(docsDir, 'docs-config.json')
 
-// Load docs configuration if present
-const configPath = path.join(process.cwd(), 'docs', 'docs-config.json')
+// Flags
+const WANT_WIKI = args.includes('wiki') || args.includes('--wiki')
+const WANT_ALL = args.includes('--all')
+const WANT_USER_ONLY = args.includes('--user-only')
+
+// Defaults + optional Config
 let config = { includeTemplate: true, templateDirs: [] }
 if (fs.existsSync(configPath)) {
   try {
@@ -16,23 +25,79 @@ if (fs.existsSync(configPath)) {
   }
 }
 
-// Determine whether template directories should be included
+// Template-Handling
 let includeTemplate = config.includeTemplate
-if (args.includes('--all')) includeTemplate = true
-if (args.includes('--user-only')) includeTemplate = false
-
-// List of directories to treat as templates
+if (WANT_ALL) includeTemplate = true
+if (WANT_USER_ONLY) includeTemplate = false
 const templateDirs = config.templateDirs || []
 
-// Helper to collect file list recursively
-function collectFiles(dir, out = [], base = process.cwd()) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true })
+// -----------------------------
+// Helpers
+// -----------------------------
+const EXCLUDES = [
+  'node_modules',
+  '.git',
+  '.github/.cache',
+  'dist',
+  'build',
+  '.next',
+  '.vercel',
+  'coverage',
+  'docs/wiki', // Wiki wird ja generiert – nicht in Kontext packen
+  '.DS_Store'
+]
+
+function isExcluded (relPath) {
+  return EXCLUDES.some((p) => relPath === p || relPath.startsWith(p + path.sep))
+}
+
+function safeStat (p) {
+  try {
+    return fs.statSync(p)
+  } catch {
+    return null
+  }
+}
+
+function listDirLong (dir) {
+  const out = []
+  let entries = []
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return ''
+  }
+  for (const entry of entries) {
+    const fp = path.join(dir, entry.name)
+    const st = safeStat(fp)
+    if (!st) continue
+    const type = entry.isDirectory() ? 'd' : '-'
+    const size = String(st.size).padStart(8)
+    const mtime = st.mtime.toISOString()
+    out.push(`${type} ${size} ${mtime} ${entry.name}`)
+  }
+  return out.join('\n')
+}
+
+function collectFiles (dir, out = [], base = CWD) {
+  let entries = []
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return out
+  }
   for (const entry of entries) {
     const full = path.join(dir, entry.name)
     const rel = path.relative(base, full)
+
+    if (isExcluded(rel)) continue
     if (!includeTemplate && templateDirs.some((t) => rel.startsWith(t))) {
       continue
     }
+
+    const st = safeStat(full)
+    if (!st) continue
+
     if (entry.isDirectory()) {
       collectFiles(full, out, base)
     } else {
@@ -42,53 +107,48 @@ function collectFiles(dir, out = [], base = process.cwd()) {
   return out
 }
 
-// Copy existing README into docs/ for reference
-const srcReadme = path.join(process.cwd(), 'README.md')
-const docsDir = path.join(process.cwd(), 'docs')
-fs.mkdirSync(docsDir, { recursive: true }) // ensure docs directory exists
+function safeRead (file, maxLines = null) {
+  try {
+    let txt = fs.readFileSync(file, 'utf8')
+    if (maxLines != null) {
+      txt = txt.split('\n').slice(0, maxLines).join('\n')
+    }
+    return txt
+  } catch {
+    return ''
+  }
+}
+
+// -----------------------------
+// Vorbereitungen
+// -----------------------------
+fs.mkdirSync(docsDir, { recursive: true })
+
+// README-Kopie für Doku-Referenz
+const srcReadme = path.join(CWD, 'README.md')
 if (fs.existsSync(srcReadme)) {
-  // keep a copy of the top-level README for documentation
   fs.copyFileSync(srcReadme, path.join(docsDir, 'README.md'))
 }
 
-// Build repository context similar to previous workflow step
-function listDirLong(dir) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true })
-  return entries
-    .map((entry) => {
-      const stats = fs.statSync(path.join(dir, entry.name))
-      const type = entry.isDirectory() ? 'd' : '-'
-      const size = stats.size.toString().padStart(8)
-      const mtime = stats.mtime.toISOString()
-      return `${type} ${size} ${mtime} ${entry.name}`
-    })
-    .join('\n')
-}
+// Repo-Tree (Top-Level)
+const repoTree = listDirLong(CWD)
 
-// Snapshot current repository tree
-const repoTree = listDirLong(process.cwd())
-
+// Git-Log (ohne extra Dependencies)
 let gitLog = ''
 try {
-  const { default: simpleGit } = await import('simple-git')
-  const git = simpleGit()
-  const log = await git.log({ n: 20 })
-  gitLog = log.all.map((c) => `${c.hash.substring(0, 7)} ${c.message}`).join('\n')
+  gitLog = execSync("git log -n 20 --pretty=format:'%h %s'", { encoding: 'utf8' })
 } catch {
-  // git or simple-git not available
+  gitLog = ''
 }
 
-// Collect and sort list of all files for context
-const files = collectFiles(process.cwd()).sort().join('\n')
+// Datei-Liste (rekursiv, sortiert, mit Excludes)
+const files = collectFiles(CWD).sort().join('\n')
 
-let readmeSnippet = ''
-if (fs.existsSync('README.md')) {
-  try {
-    readmeSnippet = execSync("sed -n '1,350p' README.md", { encoding: 'utf8' })
-  } catch {}
-}
+// README-Snippet (erste 350 Zeilen)
+const readmeSnippet = safeRead('README.md', 350)
 
-const context = [
+// Kontext zusammenstellen
+let context = [
   '## REPO TREE',
   repoTree.trim(),
   '',
@@ -100,26 +160,38 @@ const context = [
   '',
   '## README (existing, first 350 lines)',
   readmeSnippet.trim(),
-  '',
+  ''
 ].join('\n')
 
-// Persist collected context for inspection by other scripts
+// Kontext-Limit (ca. 200 KB), um API-400er zu vermeiden
+const MAX_CONTEXT_BYTES = 200 * 1024
+if (Buffer.byteLength(context, 'utf8') > MAX_CONTEXT_BYTES) {
+  // Hart abschneiden am Zeilengrenzer
+  const lines = context.split('\n')
+  const acc = []
+  let size = 0
+  for (const line of lines) {
+    const add = Buffer.byteLength(line + '\n', 'utf8')
+    if (size + add > MAX_CONTEXT_BYTES) break
+    acc.push(line)
+    size += add
+  }
+  acc.push('', '...[truncated due to size limit]...')
+  context = acc.join('\n')
+}
+
+// Persistieren
 fs.writeFileSync('repo_context.txt', context)
-console.log('Context written to repo_context.txt')
+console.log(`Context written to repo_context.txt (${Buffer.byteLength(context, 'utf8')} bytes)`)
 
-// --- Wiki generation -------------------------------------------------------
-
-/**
- * Extract single line comments from the given files.
- * Currently supports "//" comments in JS files.
- * @param {string[]} filePaths
- * @returns {string[]}
- */
-function extractComments(filePaths) {
+// -----------------------------
+// Wiki-Generierung
+// -----------------------------
+function extractComments (filePaths) {
   const comments = []
   for (const file of filePaths) {
     if (!fs.existsSync(file)) continue
-    const content = fs.readFileSync(file, 'utf8')
+    const content = safeRead(file)
     for (const line of content.split('\n')) {
       const m = line.match(/\s*\/\/\s?(.*)/)
       if (m) comments.push(m[1].trim())
@@ -128,69 +200,125 @@ function extractComments(filePaths) {
   return comments
 }
 
-/**
- * Build simple developer wiki based on package metadata and code comments.
- * Generated pages: Home, Installation, CI-CD, Usage, Contributing.
- */
-function buildWiki() {
+function buildWiki () {
   const wikiDir = path.join(docsDir, 'wiki')
   fs.mkdirSync(wikiDir, { recursive: true })
 
-  // Load package metadata
+  // package.json laden
   let pkg = {}
   try {
     pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
   } catch {}
 
-  const comments = extractComments(['index.js'])
+  // Kommentare aus JS-Dateien (erweiterbar)
+  const jsFiles = ['index.js'] // hier bei Bedarf ergänzen
+  const comments = extractComments(jsFiles)
   const commentBlock = comments.map((c) => `> ${c}`).join('\n')
 
+  // Scripts-Tabelle
   const scriptsTable = Object.entries(pkg.scripts || {})
     .map(([k, v]) => `| \`${k}\` | ${v} |`)
-    .join('\n')
+    .join('\n') || '| (keine) | - |'
 
+  // Architektur-Tabelle
   const architectureTable = [
     '| Datei | Beschreibung |',
     '|---|---|',
     '| `index.html` | Einstieg & Markup |',
     '| `index.css` | Basis-Styling |',
-    '| `index.js` | Theme-Toggle-Logik |',
+    '| `index.js` | Theme-Toggle-Logik |'
   ].join('\n')
 
-  const homeContent = `# Wiki – ${pkg.name || ''}\n\n${pkg.description || ''}\n\n| Metadatum | Wert |\n|---|---|\n| Version | ${
-    pkg.version || '0.0.0'
-  } |\n| Kommentarzeilen | ${comments.length} |\n\n${commentBlock}\n\n## Architektur\n${architectureTable}\n\n<span style="color:green">Dieses Wiki wird automatisch aus dem Code erzeugt.</span>\n\n## Kapitel\n- [[Installation]]\n- [[Usage]]\n- [[CI-CD]]\n- [[Contributing]]\n`
+  // CI/CD-Workflows dynamisch einlesen
+  const workflowDir = path.join(CWD, '.github', 'workflows')
+  const cicdRows = []
+  if (fs.existsSync(workflowDir)) {
+    for (const file of fs.readdirSync(workflowDir)) {
+      if (file.endsWith('.yml') || file.endsWith('.yaml')) {
+        cicdRows.push(`| \`${file}\` | Workflow-Datei |`)
+      }
+    }
+  }
+  const cicdTable = ['| Workflow | Beschreibung |', '|---|---|', ...(cicdRows.length ? cicdRows : ['| (keiner) | - |'])].join('\n')
 
-  const installContent = `# Installation ⚙️\n\n| Befehl | Zweck |\n|---|---|\n| \`npm install\` | Dependencies installieren |\n| \`npm run lint\` | Linting ausführen |\n\n<span style="color:orange">Tipp:</span> Node.js \>= 20 verwenden.\n`
+  // Inhalte
+  const homeContent = `# Wiki – ${pkg.name || ''}
 
-  const cicdTable = [
-    '| Workflow | Beschreibung |',
-    '|---|---|',
-    '| `ci.yml` | Linting und Tests |',
-    '| `preview.yml` | Docker-Preview |',
-    '| `docs.yml` | Doku-Automatisierung |',
-  ].join('\n')
+${pkg.description || ''}
 
-  const cicdContent = `# CI/CD 🤖\n\n${cicdTable}\n\n<span style="color:purple">Automatisierte Abläufe sorgen für Qualität.</span>\n`
+| Metadatum | Wert |
+|---|---|
+| Version | ${pkg.version || '0.0.0'} |
+| Kommentarzeilen | ${comments.length} |
 
-  const usageContent = `# Usage ▶️\n\n## Skripte\n${scriptsTable}\n\n### Theme-Toggle Beispiel\n\n\`\`\`js\n${fs
-    .readFileSync('index.js', 'utf8')
-    .trim()}\n\`\`\`\n`
+${commentBlock}
 
-  const contribContent = `# Contributing 🤝\n\n1. Fork & Branch anlegen\n2. Tests/Linter laufen lassen\n3. Pull Request erstellen\n\n<span style="color:blue">Bitte Prettier und ESLint beachten.</span>\n`
+## Architektur
+${architectureTable}
 
+<span style="color:green">Dieses Wiki wird automatisch aus dem Code erzeugt.</span>
+
+## Kapitel
+- [[Installation]]
+- [[Usage]]
+- [[CI-CD]]
+- [[Contributing]]
+`
+
+  const installContent = `# Installation ⚙️
+
+| Befehl | Zweck |
+|---|---|
+| \`npm install\` | Dependencies installieren |
+| \`npm run lint\` | Linting ausführen |
+
+<span style="color:orange">Tipp:</span> Node.js \\>= 20 verwenden.
+`
+
+  const usageJs = fs.existsSync('index.js') ? safeRead('index.js').trim() : '// (keine index.js gefunden)'
+  const usageContent = `# Usage ▶️
+
+## Skripte
+${scriptsTable}
+
+### Theme-Toggle Beispiel
+
+\`\`\`js
+${usageJs}
+\`\`\`
+`
+
+  const cicdContent = `# CI/CD 🤖
+
+${cicdTable}
+
+<span style="color:purple">Automatisierte Abläufe sorgen für Qualität.</span>
+`
+
+  const contribContent = `# Contributing 🤝
+
+1. Fork & Branch anlegen
+2. Tests/Linter laufen lassen
+3. Pull Request erstellen
+
+<span style="color:blue">Bitte Prettier und ESLint beachten.</span>
+`
+
+  // Schreiben
   fs.writeFileSync(path.join(wikiDir, 'Home.md'), homeContent)
   fs.writeFileSync(path.join(wikiDir, 'Installation.md'), installContent)
   fs.writeFileSync(path.join(wikiDir, 'CI-CD.md'), cicdContent)
   fs.writeFileSync(path.join(wikiDir, 'Usage.md'), usageContent)
   fs.writeFileSync(path.join(wikiDir, 'Contributing.md'), contribContent)
-  // remove empty placeholder if present
+
+  // evtl. Platzhalter entfernen
   const gitkeep = path.join(wikiDir, '.gitkeep')
   if (fs.existsSync(gitkeep)) fs.unlinkSync(gitkeep)
+
+  console.log('Wiki pages written to docs/wiki')
 }
 
-// When called with the `wiki` argument, render markdown wiki pages
-if (args.includes('wiki')) {
+// Ausführung
+if (WANT_WIKI) {
   buildWiki()
-  console.log('Wiki pages written to docs/wiki')
 }

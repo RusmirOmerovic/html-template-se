@@ -55,6 +55,16 @@ jobs:
         if: steps.secretcheck.outputs.missing == 'false'
         run: sudo apt-get install -y jq
 
+      - name: Install dependencies
+        if: steps.secretcheck.outputs.missing == 'false'
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+
       - name: Collect repository context
         if: steps.secretcheck.outputs.missing == 'false'
         run: |

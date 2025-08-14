@@ -33,14 +33,14 @@ jobs:
         run: npm audit --audit-level=moderate
 
       # ---- Linting & Format ----
-      - name: Lint HTML/CSS/JS
-        run: npm run lint
+      - name: Lint HTML/CSS/JS (if present)
+        run: npm run lint --if-present
 
       - name: Prettier check
         run: npm run fmt:check
 
       # ---- Tests (falls vorhanden) ----
-      - name: Unit tests
+      - name: Unit tests (if present)
         run: npm test --if-present
-      - name: Format
-        run: npm run fmt
+      - name: Prettier Check
+        run: npm run fmt:check
