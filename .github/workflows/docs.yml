@@ -91,6 +91,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+
+          # Kein Content? Dann raus.
           if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
             echo "No wiki content to push."
             exit 0
@@ -102,13 +104,15 @@ jobs:
           # Authentifiziertes Wiki-Repo klonen
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
 
-          # Dateien übernehmen
+          # Dateien übernehmen (spiegeln)
           rsync -a --delete docs/wiki/ wiki-repo/
 
-          cd wiki-repo
-          git add .
-          git commit -m "docs: update Wiki from workflow" || { echo "No wiki changes to commit"; exit 0; }
-          git push
+          # WICHTIG: Git-Kommandos gezielt im Wiki-Repo ausführen
+          git -C wiki-repo add .
+          git -C wiki-repo commit -m "docs: update Wiki from workflow" || { echo "No wiki changes to commit"; exit 0; }
+          # In Wiki einfach HEAD pushen (kein Branchname nötig)
+          git -C wiki-repo push origin HEAD
+
 
       - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.missing == 'false'
