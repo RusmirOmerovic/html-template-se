@@ -92,21 +92,29 @@ jobs:
         run: |
           set -euo pipefail
 
+          # 0) Gibt's überhaupt Inhalte?
           if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
             echo "No wiki content to push."
             exit 0
           fi
+
+          echo "=== docs/wiki content ==="
+          ls -la docs/wiki || true
+          echo "Show Home.md (first 20 lines):"
+          sed -n '1,20p' docs/wiki/Home.md || true
 
           WIKI_REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
 
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # 1) Frisches Repo holen
           rm -rf wiki-repo
           git clone "$WIKI_REMOTE" wiki-repo
 
+          # 2) Default-Branch ermitteln (master/main) und auschecken
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
-          if [ -z "${DEFAULT_BRANCH}" ]; then
+          if [ -z "${DEFAULT_BRANCH:-}" ]; then
             if git -C wiki-repo show-ref --verify --quiet refs/remotes/origin/master; then
               DEFAULT_BRANCH="master"
             else
@@ -116,19 +124,25 @@ jobs:
           echo "Wiki default branch detected: ${DEFAULT_BRANCH}"
 
           git -C wiki-repo checkout "${DEFAULT_BRANCH}" || git -C wiki-repo checkout -b "${DEFAULT_BRANCH}"
-
-          # Lokalen Branch-Namen angleichen
           git -C wiki-repo branch -M "${DEFAULT_BRANCH}"
 
+          # 3) Sync
           rsync -a --delete docs/wiki/ wiki-repo/
 
+          echo "=== wiki-repo after sync ==="
+          ls -la wiki-repo || true
+          echo "Show synced Home.md (first 20 lines):"
+          sed -n '1,20p' wiki-repo/Home.md || true
+
+          # 4) Commit & Push nur wenn Änderungen
           git -C wiki-repo add -A
           if git -C wiki-repo diff --cached --quiet; then
-            echo "No wiki changes to commit"
+            echo "No wiki changes to commit (already up to date)."
             exit 0
           fi
           git -C wiki-repo commit -m "docs: update Wiki from workflow"
           git -C wiki-repo push origin "${DEFAULT_BRANCH}"
+          echo "✅ Wiki pushed."
 
       - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.missing == 'false'
