@@ -92,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 0) Gibt's überhaupt Inhalte?
+          # Abort if nothing generated
           if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
             echo "No wiki content to push."
             exit 0
@@ -101,40 +101,29 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # 1) Frisches Zielverzeichnis sicherstellen
+          # Fresh clone
           rm -rf wiki-repo
-
-          # 2) Authentifiziertes Wiki-Repo klonen
-          echo "Cloning wiki repo..."
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
 
-          # 3) Sanity-Checks
-          if [ ! -d wiki-repo/.git ]; then
-            echo "::error ::Cloned wiki-repo has no .git directory. Is the Wiki enabled and reachable?"
-            ls -la wiki-repo || true
-            exit 1
-          fi
+          # Sanity: ensure it's a real git repo
+          [ -d wiki-repo/.git ] || { echo "::error ::wiki-repo has no .git"; exit 1; }
           git -C wiki-repo rev-parse --is-inside-work-tree
 
-          # 4) Inhalte spiegeln
+          # Sync files into the wiki repo
           rsync -a --delete docs/wiki/ wiki-repo/
 
-          # 5) Commit & Push in Subshell IM wiki-repo (kein Upwards-Fallthrough)
-          (
-            set -e
-            cd wiki-repo
-            echo "Wiki repo content after sync:"
-            ls -la
-            git status --porcelain || true
-            git add .
-            if git diff --cached --quiet; then
-              echo "No wiki changes to commit"
-              exit 0
-            fi
-            git commit -m "docs: update Wiki from workflow"
-            # Wikis haben i. d. R. keinen besonderen Branch-Namen – HEAD reicht
-            git push origin HEAD
-          )
+          # Show state (inside wiki-repo only)
+          ls -la wiki-repo || true
+          git -C wiki-repo status --porcelain || true
+
+          # Stage, commit, push inside wiki-repo (never touch parent repo)
+          git -C wiki-repo add -A
+          if git -C wiki-repo diff --cached --quiet; then
+            echo "No wiki changes to commit"
+            exit 0
+          fi
+          git -C wiki-repo commit -m "docs: update Wiki from workflow"
+          git -C wiki-repo push origin HEAD
 
       - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.missing == 'false'
