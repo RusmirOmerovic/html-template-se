@@ -1,6 +1,6 @@
 # HTML Template SE
 
-Dieses Repository ist eine Basisstruktur für das GitHub-CI/CD-Template `html-template-se`. Es enthält einen einfachen Dark-Mode-Button mit HTML/CSS/JS, Linting- und Formatierungsskripte für HTML, CSS und JavaScript sowie ein automatisches Deployment einer Vorschau mittels GitHub Actions.
+Dieses Repository dient als Basisstruktur für das GitHub-CI/CD-Template `html-template-se`. Es enthält einen einfachen Dark-Mode-Button mit HTML/CSS/JS, Linting- und Formatierungsskripte für HTML, CSS und JavaScript sowie ein automatisches Deployment einer Vorschau mittels GitHub Actions.
 
 ## Features
 
