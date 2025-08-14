@@ -26,10 +26,12 @@ HTML/CSS/JS Template mit automatischen Linter- und Formatierungs-Checks
 }
 ```
 
+
 ## 📦 Installation
 ```bash
 npm install
 ```
+
 
 ## 🚀 Nutzung
 ```bash
