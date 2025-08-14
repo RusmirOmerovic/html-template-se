@@ -2,6 +2,11 @@ name: Generate Docs (README + Wiki)
 
 on:
   workflow_dispatch:
+    inputs:
+      include-template:
+        description: 'Include template directories'
+        required: false
+        default: 'false'
   push:
     branches: ['main']
 
@@ -56,19 +61,8 @@ jobs:
         if: steps.secretcheck.outputs.missing == 'false'
         run: |
           set -euo pipefail
-          {
-            echo "## REPO TREE"
-            ls -la
-            echo
-            echo "## GIT LOG (last 20)"
-            git --no-pager log --oneline -n 20 || true
-            echo
-            echo "## FILE LIST (recursive)"
-            ls -R || true
-            echo
-            echo "## README (existing, first 350 lines)"
-            [ -f README.md ] && sed -n '1,350p' README.md || true
-          } > repo_context.txt
+          FLAG=${{ github.event.inputs.include-template == 'true' && '--all' || '--user-only' }}
+          node scripts/generate-docs.mjs $FLAG
           echo "Context size:"
           wc -c repo_context.txt || true
 
