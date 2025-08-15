@@ -91,7 +91,7 @@ jobs:
         if: steps.secretcheck.outputs.missing == 'false'
         run: npm run fmt README.md docs/wiki || true
 
-            - name: Push Wiki (robust fetch/rebase + retry)
+      - name: Push Wiki (robust fetch/rebase + retry)
         if: steps.secretcheck.outputs.missing == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
