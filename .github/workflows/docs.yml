@@ -103,7 +103,7 @@ jobs:
 
           # Sicherstellen, dass Wiki-Repo 100% auf Remote-Stand ist
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
-          [-z "${DEFAULT_BRANCH:-}" ] && DEFAULT_BRANCH=master
+          [-z "${DEFAULT_BRANCH:-}" ] && DEFAULT_BRANCH=main
 
           git -C wiki-repo fetch origin "${DEFAULT_BRANCH}"
           git -C wiki-repo reset --hard "origin/${DEFAULT_BRANCH}"
@@ -142,7 +142,7 @@ jobs:
 
           # 2) Default-Branch bestimmen (master/main)
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
-          [ -z "${DEFAULT_BRANCH:-}" ] && DEFAULT_BRANCH=master
+          [ -z "${DEFAULT_BRANCH:-}" ] && DEFAULT_BRANCH=main
           echo "Wiki default branch: $DEFAULT_BRANCH"
 
           # 3) Sicher auf Remote-Stand zurücksetzen (vermeidet 'unrelated histories')
