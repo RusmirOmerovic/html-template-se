@@ -115,7 +115,7 @@ jobs:
           # Commit & Push
           git -C wiki-repo add -A
           git -C wiki-repo commit -m "docs: update Wiki from workflow" || echo "No changes to commit"
-          git -C wiki-repo push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.wiki.git" master
+          git -C wiki-repo push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.wiki.git" "${DEFAULT_BRANCH}"
 
       - name: Push Wiki (clean reset + force-with-lease)
         if: steps.secretcheck.outputs.missing == 'false'
