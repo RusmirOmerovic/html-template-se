@@ -123,12 +123,7 @@ function safeRead(file, maxLines = null) {
 // Vorbereitungen
 // -----------------------------
 fs.mkdirSync(docsDir, { recursive: true })
-
-// README-Kopie für Doku-Referenz
-const srcReadme = path.join(CWD, 'README.md')
-if (fs.existsSync(srcReadme)) {
-  fs.copyFileSync(srcReadme, path.join(docsDir, 'README.md'))
-}
+// WICHTIG: KEINE README-Kopie mehr ins docs/ legen – sonst landet sie im Wiki.
 
 // Repo-Tree (Top-Level)
 const repoTree = listDirLong(CWD)
@@ -210,115 +205,86 @@ function buildWiki() {
     pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
   } catch {}
 
-  // Kommentare aus JS-Dateien (erweiterbar)
-  const jsFiles = ['index.js'] // hier bei Bedarf ergänzen
-  const comments = extractComments(jsFiles)
-  const commentBlock = comments.map((c) => `> ${c}`).join('\n')
-
-  // Scripts-Tabelle
-  const scriptsTable =
-    Object.entries(pkg.scripts || {})
-      .map(([k, v]) => `| \`${k}\` | ${v} |`)
-      .join('\n') || '| (keine) | - |'
-
-  // Architektur-Tabelle
-  const architectureTable = [
-    '| Datei | Beschreibung |',
-    '|---|---|',
-    '| `index.html` | Einstieg & Markup |',
-    '| `index.css` | Basis-Styling |',
-    '| `index.js` | Theme-Toggle-Logik |',
+  // 1) Home – kompakte Übersicht + Featureliste
+  const features = [
+     '- 🧩 HTML/CSS/JS Grundgerüst mit Lint & Format',
+     '- 🧪 CI-Checks (Lint, optional Tests, Prettier)',
+     '- 🐳 Docker & Compose (lokal starten)',
+     '- 🤖 Automatische README- und Wiki-Generierung (OpenAI)',
   ].join('\n')
 
-  // CI/CD-Workflows dynamisch einlesen
-  const workflowDir = path.join(CWD, '.github', 'workflows')
-  const cicdRows = []
-  if (fs.existsSync(workflowDir)) {
-    for (const file of fs.readdirSync(workflowDir)) {
-      if (file.endsWith('.yml') || file.endsWith('.yaml')) {
-        cicdRows.push(`| \`${file}\` | Workflow-Datei |`)
-      }
-    }
-  }
-  const cicdTable = [
-    '| Workflow | Beschreibung |',
-    '|---|---|',
-    ...(cicdRows.length ? cicdRows : ['| (keiner) | - |']),
-  ].join('\n')
+  const home = `# Wiki – ${pkg.name || 'Projekt'}
+ ${pkg.description ? '\n' + pkg.description + '\n' : ''}
 
-  // Inhalte
-  const homeContent = `# Wiki – ${pkg.name || ''}
+ ## Features
+ ${features}
+ 
+ ## Schnellstart
+ \`\`\`bash
+ # Installation
+ npm install
+ # Lint & Format
+ npm run lint && npm run fmt
+ # Lokaler Start (ohne Docker)
+ # -> falls dev-server existiert: npm run dev
+ \`\`\`
 
-${pkg.description || ''}
+ Siehe Kapitel: [[Installation]], [[Usage]], [[CI-CD]], [[Contributing]].
+ `
+  fs.writeFileSync(path.join(wikiDir, 'Home.md'), home)
+  // Installation
+  const install = `# Installation ⚙️
+**Voraussetzungen**: Node.js >= 20, npm
 
-| Metadatum | Wert |
-|---|---|
-| Version | ${pkg.version || '0.0.0'} |
-| Kommentarzeilen | ${comments.length} |
+\`\`\`bash
+ npm install
+ npm run fmt:check
+ npm run lint
+ \`\`\`
 
-${commentBlock}
+ **Docker**
+ \`\`\`bash
+ docker compose up --build
+ \`\`\`
+ `
 
-## Architektur
-${architectureTable}
+ fs.writeFileSync(path.join(wikiDir, 'Installation.md'), install)
+  // 3) Usage – Skripte + Startoptionen
+  const scriptsRows = (Object.entries(pkg.scripts || {}).length
+   ? Object.entries(pkg.scripts).map(([k, v]) => `| \`${k}\` | ${v} |`).join('\n')
+   : '| (keine) | - |')
+  const usage = `# Usage ▶️
+    ## npm Scripts
+    | Script | Befehl |
+    |---|---|
+    ${scriptsRows}
 
-<span style="color:green">Dieses Wiki wird automatisch aus dem Code erzeugt.</span>
+  ### Theme-Toggle Beispiel
+  \`\`\`js
+  ${fs.existsSync('index.js') ? safeRead('index.js').trim() : '// (keine index.js gefunden)'}
+  \`\`\`
+  `
+    fs.writeFileSync(path.join(wikiDir, 'Usage.md'), usage)
 
-## Kapitel
-- [[Installation]]
-- [[Usage]]
-- [[CI-CD]]
-- [[Contributing]]
-`
+  // 4) CI/CD – echte Dateien auflisten
+   const wfDir = path.join(process.cwd(), '.github', 'workflows')
+   const wfs = fs.existsSync(wfDir) ? fs.readdirSync(wfDir).filter(f => f.endsWith('.yml') || f.endsWith('.yaml')) : []
+   const wfTable = (wfs.length ? wfs : ['(keine gefunden)']).map(f => `| \`${f}\` | Workflow-Datei |`).join('\n')
+   const cicd = `# CI/CD 🤖
+ | Workflow | Beschreibung |
+ |---|---|
+ ${wfTable}
+ `
+  fs.writeFileSync(path.join(wikiDir, 'CI-CD.md'), cicd)
+// 5) Contributing – klare, kurze Regeln
+const contrib = `# Contributing 🤝
+1. Branch erstellen (\`feature/...\`)
+ 2. \`npm run lint\` & \`npm run fmt:check\`
+ 3. PR erstellen – CI muss grün sein
+ `
+   fs.writeFileSync(path.join(wikiDir, 'Contributing.md'), contrib)
 
-  const installContent = `# Installation ⚙️
-
-| Befehl | Zweck |
-|---|---|
-| \`npm install\` | Dependencies installieren |
-| \`npm run lint\` | Linting ausführen |
-
-<span style="color:orange">Tipp:</span> Node.js \\>= 20 verwenden.
-`
-
-  const usageJs = fs.existsSync('index.js')
-    ? safeRead('index.js').trim()
-    : '// (keine index.js gefunden)'
-  const usageContent = `# Usage ▶️
-
-## Skripte
-${scriptsTable}
-
-### Theme-Toggle Beispiel
-
-\`\`\`js
-${usageJs}
-\`\`\`
-`
-
-  const cicdContent = `# CI/CD 🤖
-
-${cicdTable}
-
-<span style="color:purple">Automatisierte Abläufe sorgen für Qualität.</span>
-`
-
-  const contribContent = `# Contributing 🤝
-
-1. Fork & Branch anlegen
-2. Tests/Linter laufen lassen
-3. Pull Request erstellen
-
-<span style="color:blue">Bitte Prettier und ESLint beachten.</span>
-`
-
-  // Schreiben
-  fs.writeFileSync(path.join(wikiDir, 'Home.md'), homeContent)
-  fs.writeFileSync(path.join(wikiDir, 'Installation.md'), installContent)
-  fs.writeFileSync(path.join(wikiDir, 'CI-CD.md'), cicdContent)
-  fs.writeFileSync(path.join(wikiDir, 'Usage.md'), usageContent)
-  fs.writeFileSync(path.join(wikiDir, 'Contributing.md'), contribContent)
-
-  // evtl. Platzhalter entfernen
+// evtl. Platzhalter entfernen
   const gitkeep = path.join(wikiDir, '.gitkeep')
   if (fs.existsSync(gitkeep)) fs.unlinkSync(gitkeep)
 
