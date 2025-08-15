@@ -88,21 +88,14 @@ jobs:
       - name: Push Wiki
         if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         env:
-          PAT: ${{ secrets.GH_PAT_WORKFLOW }}
+          PAT: ${{ secrets.GH_PAT_WORKFLOW }}   # PAT mit Scopes: repo, workflow
         run: |
           set -euo pipefail
-          git clone "https://github.com/${{ github.repository }}.wiki.git" wiki-repo
-          cd wiki-repo
-          git fetch origin
-          git reset --hard origin/master
-          cp -r ../docs/wiki/* .
-          git add .
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update Wiki" || echo "No changes to commit"
-          git push origin master
+
+          # 0) Abbruch, wenn nichts zu pushen
           if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
-            echo "No wiki content to push."; exit 0
+            echo "No wiki content to push."
+            exit 0
           fi
 
           WIKI_URL="https://x-access-token:${PAT}@github.com/${GITHUB_REPOSITORY}.wiki.git"
@@ -112,13 +105,20 @@ jobs:
 
           rm -rf wiki-repo
           git clone "$WIKI_URL" wiki-repo
+          git -C wiki-repo remote set-url origin "$WIKI_URL"
 
+          # Default-Branch des Wikis ermitteln (master/main)
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
           if [ -z "${DEFAULT_BRANCH:-}" ]; then
-            if git -C wiki-repo show-ref --verify --quiet refs/remotes/origin/master; then DEFAULT_BRANCH="master"; else DEFAULT_BRANCH="main"; fi
+            if git -C wiki-repo show-ref --verify --quiet refs/remotes/origin/master; then
+              DEFAULT_BRANCH="master"
+            else
+              DEFAULT_BRANCH="main"
+            fi
           fi
           echo "Wiki default branch: ${DEFAULT_BRANCH}"
 
+          # Branch sauber auf Remote-Stand setzen
           if git -C wiki-repo show-ref --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}"; then
             git -C wiki-repo checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
           else
@@ -126,32 +126,31 @@ jobs:
             rm -rf wiki-repo/*
             git -C wiki-repo commit --allow-empty -m "init wiki"
           fi
+          git -C wiki-repo fetch origin "${DEFAULT_BRANCH}" || true
+          git -C wiki-repo reset --hard "origin/${DEFAULT_BRANCH}" || true
+          git -C wiki-repo clean -fdx
 
+          # Inhalte spiegeln und Altlasten entfernen
           rsync -a --delete docs/wiki/ wiki-repo/
-
-          # 🔧 Cleanup: Reste aus alten Läufen entfernen (README*-Seiten o.ä.)
           git -C wiki-repo ls-files | grep -Ei '^README(|-.*)?\.md$' | xargs -r -I{} git -C wiki-repo rm -f "{}" || true
-          # Optional: weitere Altlasten-Regeln:
-          # git -C wiki-repo ls-files | grep -Ei '^home\(1\)?.md$' | xargs -r -I{} git -C wiki-repo rm -f "{}" || true
 
-          echo "Pushing to ${DEFAULT_BRANCH}..."
-             if ! git -C wiki-repo push origin HEAD:${DEFAULT_BRANCH}; then
-            echo "Push rejected. Fetching and rebasing..."
-            git -C wiki-repo fetch origin ${DEFAULT_BRANCH} || true
-            git -C wiki-repo pull --rebase origin ${DEFAULT_BRANCH} || true
-            git -C wiki-repo push origin HEAD:${DEFAULT_BRANCH} || \
-            git -C wiki-repo push --force-with-lease origin HEAD:${DEFAULT_BRANCH}
+          # Commit + Push (mit Fallback)
+          git -C wiki-repo add -A
+          if git -C wiki-repo diff --cached --quiet; then
+            echo "No wiki changes to commit."
+            exit 0
           fi
-          echo "✅ Wiki pushed."
+          git -C wiki-repo commit -m "docs: update Wiki from workflow"
 
           echo "Pushing wiki HEAD -> ${DEFAULT_BRANCH}"
-          if ! git -C wiki-repo push "$WIKI_URL" HEAD:refs/heads/${DEFAULT_BRANCH}; then
+          if ! git -C wiki-repo push origin HEAD:refs/heads/${DEFAULT_BRANCH}; then
             echo "Non-fast-forward, rebasing…"
-            git -C wiki-repo fetch "$WIKI_URL" ${DEFAULT_BRANCH} || true
-            git -C wiki-repo pull --rebase "$WIKI_URL" ${DEFAULT_BRANCH} || true
-            git -C wiki-repo push "$WIKI_URL" HEAD:refs/heads/${DEFAULT_BRANCH} || \
-              git -C wiki-repo push --force-with-lease "$WIKI_URL" HEAD:refs/heads/${DEFAULT_BRANCH}
+            git -C wiki-repo fetch origin ${DEFAULT_BRANCH} || true
+            git -C wiki-repo pull --rebase origin ${DEFAULT_BRANCH} || true
+            git -C wiki-repo push origin HEAD:refs/heads/${DEFAULT_BRANCH} || \
+              git -C wiki-repo push --force-with-lease origin HEAD:refs/heads/${DEFAULT_BRANCH}
           fi
+
           echo "✅ Wiki pushed."
 
       # ---------- PR im Haupt-Repo (PAT nutzen) ----------
