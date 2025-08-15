@@ -17,7 +17,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  actions: write
+
 concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: false
@@ -54,10 +54,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Install jq
+      - name: Install tools (jq, rsync)
         if: steps.secretcheck.outputs.missing == 'false'
-        run: sudo apt-get install -y jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq rsync
 
       - name: Install dependencies
         if: steps.secretcheck.outputs.missing == 'false'
@@ -70,18 +73,21 @@ jobs:
 
       - name: Collect repository context
         if: steps.secretcheck.outputs.missing == 'false'
+        env:
+          INCLUDE_TEMPLATE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.include-template || 'false' }}
         run: |
           set -euo pipefail
-          FLAG=${{ github.event.inputs.include-template == 'true' && '--all' || '--user-only' }}
-          node scripts/generate-docs.mjs $FLAG wiki
+          if [ "${INCLUDE_TEMPLATE}" = "true" ]; then FLAG="--all"; else FLAG="--user-only"; fi
+          node scripts/generate-docs.mjs "$FLAG" wiki
           echo "Context size:" && wc -c repo_context.txt || true
 
       - name: Generate README with OpenAI (scripted)
         if: steps.secretcheck.outputs.missing == 'false'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_refresh || 'false' }}
         run: |
-          bash scripts/ai-readme.sh "${{ github.event.inputs.force_refresh || 'false' }}"
+          bash scripts/ai-readme.sh "${FORCE_REFRESH}"
 
       - name: Build Wiki from code comments
         if: steps.secretcheck.outputs.missing == 'false'
@@ -91,21 +97,21 @@ jobs:
         if: steps.secretcheck.outputs.missing == 'false'
         run: npm run fmt README.md docs/wiki || true
 
-      - name: Push Wiki (clean, branch-agnostic)
+      - name: Push Wiki (hard overwrite)
         if: steps.secretcheck.outputs.missing == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           WIKI_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+
           rm -rf wiki-repo
           git clone "$WIKI_URL" wiki-repo
 
-          # Default-Branch (master/main) ermitteln, fallback auf master->main
+          # Ziel-Branch bestimmen (master/main), Fallbacks
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
           [ -z "${DEFAULT_BRANCH:-}" ] && DEFAULT_BRANCH=master
           if ! git -C wiki-repo ls-remote --exit-code --heads origin "${DEFAULT_BRANCH}" >/dev/null 2>&1; then
@@ -113,29 +119,24 @@ jobs:
           fi
           echo "Wiki default branch: $DEFAULT_BRANCH"
 
-          # Sicherstellen, dass ein lokaler Branch existiert (kein detached HEAD)
-          if git -C wiki-repo show-ref --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}"; then
-            git -C wiki-repo checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
-            git -C wiki-repo reset --hard "origin/${DEFAULT_BRANCH}"
-          else
-            git -C wiki-repo checkout --orphan "${DEFAULT_BRANCH}"
-            git -C wiki-repo rm -r --cached . >/dev/null 2>&1 || true
-            git -C wiki-repo commit --allow-empty -m "init wiki"
-          fi
+          # Auf Remote-Stand auschecken
+          git -C wiki-repo fetch origin "${DEFAULT_BRANCH}"
+          git -C wiki-repo checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}" || git -C wiki-repo checkout --orphan "${DEFAULT_BRANCH}"
 
-          # Inhalte hart überschreiben
+          # Inhalte hart ersetzen
           find wiki-repo -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
           rsync -a --delete docs/wiki/ wiki-repo/
 
           git -C wiki-repo add -A
+          # Wenn es wirklich gar keine Änderungen gibt, sauber beenden
           if git -C wiki-repo diff --cached --quiet; then
             echo "No wiki changes to commit."
             exit 0
           fi
-          git -C wiki-repo commit -m "docs: update Wiki from workflow"
 
-          # WICHTIG: aus detached/egal welchem Zustand immer HEAD -> remoteBranch pushen
-          git -C wiki-repo push --force-with-lease "$WIKI_URL" HEAD:"${DEFAULT_BRANCH}"
+          git -C wiki-repo commit -m "docs: update Wiki from workflow"
+          # Bewusst immer überschreiben:
+          git -C wiki-repo push --force "$WIKI_URL" HEAD:"${DEFAULT_BRANCH}"
 
       - name: Prepare docs branch (for PR with README + docs/wiki)
         if: steps.secretcheck.outputs.missing == 'false'
@@ -143,13 +144,14 @@ jobs:
         run: |
           set -euo pipefail
           BR="docs/generated-${{ github.run_id }}"
+          echo "branch=$BR" >> "$GITHUB_OUTPUT"
+          # staged nur, um Changes zu prüfen; committet wird im nächsten Step
           git add README.md docs/wiki || true
           if git diff --cached --quiet; then
             echo "No doc changes detected – skipping PR."
             echo "skip_pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip_pr=false" >> "$GITHUB_OUTPUT"
-            echo "branch=$BR" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create Pull Request
