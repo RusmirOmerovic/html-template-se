@@ -3,9 +3,10 @@ set -euo pipefail
 
 : "${OPENAI_API_KEY:?OPENAI_API_KEY not set}"
 
+# -------- Prompt-Body --------
 BODY=$(
   cat <<'EOF'
-Du bist ein technischer Redakteur. Erstelle ein vollständiges, **deutschsprachiges** `README.md` für dieses Repository basierend auf dem bereitgestellten Repo-Kontext.
+Du bist ein technischer Redakteur. Erstelle ein vollständiges, **deutschsprachiges** README.md für dieses Repository basierend auf dem bereitgestellten Repo-Kontext.
 Schreibe präzise, pragmatisch und mit Codebeispielen. Verwende Markdown-Überschriften, Tabellen und Codeblöcke.
 
 MUSS-ABSCHNITTE:
@@ -29,32 +30,43 @@ Gib NUR den Markdown-Inhalt aus, ohne Backticks drum herum.
 EOF
 )
 
-INPUT=$(cat repo_context.txt)
+# -------- Repo-Kontext laden --------
+INPUT="$(cat repo_context.txt)"
 
-RESP=$(curl -sS https://api.openai.com/v1/chat/completions \
-  -H "Authorization: Bearer ${OPENAI_API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d @- <<JSON
+# -------- User-Content vorbereiten & JSON-escapen --------
+USER_CONTENT="$(printf '%s\n\n---\nREPO-KONTEXT:\n%s' "$BODY" "$INPUT" | jq -Rs .)"
+
+# -------- API-Call --------
+RESP="$(
+  curl -sS https://api.openai.com/v1/chat/completions \
+    -H "Authorization: Bearer ${OPENAI_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d @- <<JSON
 {
   "model": "gpt-4o-mini",
   "temperature": 0.3,
   "max_tokens": 4000,
   "messages": [
-    {"role":"system","content":"Du bist ein präziser, technischer Redakteur."},
-    {"role":"user","content": ${jq -Rs . <<<"$BODY\n\n---\nREPO-KONTEXT:\n$INPUT"}}
+    { "role": "system", "content": "Du bist ein präziser, technischer Redakteur." },
+    { "role": "user",   "content": ${USER_CONTENT} }
   ]
 }
 JSON
-)
+)"
 
-# Inhalt extrahieren
-CONTENT=$(printf '%s' "$RESP" | jq -r '.choices[0].message.content // ""')
+# -------- Inhalt extrahieren --------
+CONTENT="$(printf '%s' "$RESP" | jq -r '.choices[0].message.content // ""')"
+
 if [ -z "$CONTENT" ]; then
   echo "README generation returned empty output." >&2
-  echo "$RESP" | jq -r '.' >&2 || true
+  printf '%s\n' "$RESP" | jq -r '.' >&2 || true
   exit 1
 fi
 
 printf '%s\n' "$CONTENT" > README.md
-[ -s README.md ] || { echo "README is empty after write." >&2; exit 1; }
+if [ ! -s README.md ]; then
+  echo "README is empty after write." >&2
+  exit 1
+fi
+
 echo "README.md written."
