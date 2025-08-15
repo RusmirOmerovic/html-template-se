@@ -6,11 +6,11 @@ services:
       args:
         INSTALL_SE_TOOLS: 'true' # bei Bedarf "false"
     container_name: html-template-se
-    command: ['npx', 'vite', '--host', '0.0.0.0', '--port', '5173']
+    command: ['npx', 'vite', '--host', '0.0.0.0', '--port', '5173'] # start Vite dev server
     ports:
-      - '5173:5173'
+      - '5173:5173' # expose dev server port
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=development # ensure deps install in dev mode
       # macOS/Windows: zuverlässigeres File-Watching im Container
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
@@ -27,6 +27,7 @@ services:
     stdin_open: true
     tty: true
     healthcheck:
+      # verify dev server responds before marking container healthy
       test: ['CMD', 'sh', '-c', 'curl -fsS http://localhost:5173 >/dev/null || exit 1']
       interval: 10s
       timeout: 3s

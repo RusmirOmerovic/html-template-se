@@ -29,19 +29,18 @@ jobs:
             npm install --legacy-peer-deps
           fi
 
+      - name: Security audit
+        run: npm audit --audit-level=moderate
+
       # ---- Linting & Format ----
-      - name: Lint HTML
-        run: npm run lint:html
-
-      - name: Lint CSS
-        run: npm run lint:css
-
-      - name: Lint JS
-        run: npm run lint:js
+      - name: Lint HTML/CSS/JS (if present)
+        run: npm run lint --if-present
 
       - name: Prettier check
         run: npm run fmt:check
 
       # ---- Tests (falls vorhanden) ----
-      - name: Unit tests
+      - name: Unit tests (if present)
         run: npm test --if-present
+      - name: Prettier Check
+        run: npm run fmt:check
