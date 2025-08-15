@@ -3,10 +3,18 @@ set -euo pipefail
 
 : "${OPENAI_API_KEY:?OPENAI_API_KEY not set}"
 
-# -------- Prompt-Body --------
-BODY=$(
-  cat <<'EOF'
-Du bist ein technischer Redakteur. Erstelle ein vollständiges, **deutschsprachiges** README.md für dieses Repository basierend auf dem bereitgestellten Repo-Kontext.
+FORCE_REFRESH="${1:-false}"
+
+# Falls per workflow_dispatch gesetzt:
+if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+  fr=$(jq -r '.inputs.force_refresh // empty' "$GITHUB_EVENT_PATH" || true)
+  if [ -n "$fr" ]; then FORCE_REFRESH="$fr"; fi
+fi
+
+echo "Force refresh: $FORCE_REFRESH"
+
+BODY=$(cat <<'EOF'
+Du bist ein technischer Redakteur. Erstelle ein vollständiges, **deutschsprachiges** `README.md` für dieses Repository basierend auf dem bereitgestellten Repo-Kontext.
 Schreibe präzise, pragmatisch und mit Codebeispielen. Verwende Markdown-Überschriften, Tabellen und Codeblöcke.
 
 MUSS-ABSCHNITTE:
@@ -30,45 +38,43 @@ Gib NUR den Markdown-Inhalt aus, ohne Backticks drum herum.
 EOF
 )
 
-# -------- Repo-Kontext laden --------
 INPUT="$(cat repo_context.txt)"
 
-# -------- User-Content vorbereiten & JSON-escapen --------
-USER_CONTENT="$(printf '%s\n\n---\nREPO-KONTEXT:\n%s' "$BODY" "$INPUT" | jq -Rs .)"
+# JSON sicher quoten (ohne Bash-Erweiterungen, nur jq)
+USER_PAYLOAD=$(printf '%s\n\n---\nREPO-KONTEXT:\n%s\n' "$BODY" "$INPUT" | jq -Rs .)
 
-# -------- API-Call --------
-RESP="$(
-  curl -sS https://api.openai.com/v1/chat/completions \
-    -H "Authorization: Bearer ${OPENAI_API_KEY}" \
-    -H "Content-Type: application/json" \
-    -d @- <<JSON
+RESP="$(curl -sS https://api.openai.com/v1/chat/completions \
+  -H "Authorization: Bearer ${OPENAI_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d @- <<JSON
 {
   "model": "gpt-4o-mini",
   "temperature": 0.3,
   "max_tokens": 4000,
   "messages": [
-    { "role": "system", "content": "Du bist ein präziser, technischer Redakteur." },
-    { "role": "user",   "content": ${USER_CONTENT} }
+    {"role":"system","content":"Du bist ein präziser, technischer Redakteur."},
+    {"role":"user","content": ${USER_PAYLOAD}}
   ]
 }
 JSON
 )"
 
-# -------- Inhalt extrahieren --------
 CONTENT="$(printf '%s' "$RESP" | jq -r '.choices[0].message.content // ""')"
 
 if [ -z "$CONTENT" ]; then
   echo "README generation returned empty output." >&2
-  printf '%s\n' "$RESP" | jq -r '.' >&2 || true
+  echo "$RESP" | jq -r '.' >&2 || true
   exit 1
+fi
+
+# Falls kein Force-Refresh: nur schreiben, wenn sich etwas ändert
+if [ "$FORCE_REFRESH" != "true" ] && [ -f README.md ]; then
+  if printf '%s' "$CONTENT" | diff -q - README.md >/dev/null 2>&1; then
+    echo "README unverändert – kein Schreibvorgang."
+    exit 0
+  fi
 fi
 
 printf '%s\n' "$CONTENT" > README.md
 [ -s README.md ] || { echo "README is empty after write." >&2; exit 1; }
-
-# Optionale „Force“-Änderung, damit Git sicher einen Diff sieht
-if [ "${FORCE_REFRESH:-false}" = "true" ]; then
-  echo "<!-- readme-refresh:${GITHUB_RUN_ID:-local} sha:${GITHUB_SHA:-local} -->" >> README.md
-fi
-
 echo "README.md written."

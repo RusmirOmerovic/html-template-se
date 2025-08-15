@@ -1,18 +1,18 @@
 name: Generate Docs (README + Wiki)
 
 on:
+  push:
+    branches: [ "main" ]
   workflow_dispatch:
     inputs:
       include-template:
         description: 'Include template directories'
         required: false
         default: 'false'
-      force-refresh:
-        description: 'Force refresh README & Wiki (append stamp)'
+      force_refresh:
+        description: 'Erzwinge neue Generierung (README + Wiki) auch ohne Diff'
         required: false
         default: 'false'
-  push:
-    branches: ['main']
 
 permissions:
   contents: write
@@ -28,37 +28,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check required secrets
+      - name: Check required secret
         id: secretcheck
         run: |
-          miss_openai=$([ -z "${{ secrets.OPENAI_API_KEY }}" ] && echo true || echo false)
-          miss_pat=$([ -z "${{ secrets.GH_PAT_WORKFLOW }}" ] && echo true || echo false)
-          echo "miss_openai=$miss_openai" >> "$GITHUB_OUTPUT"
-          echo "miss_pat=$miss_pat" >> "$GITHUB_OUTPUT"
+          if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "OPENAI_API_KEY is missing – skipping docs generation."
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Stop early if secrets missing
-        if: steps.secretcheck.outputs.miss_openai == 'true' || steps.secretcheck.outputs.miss_pat == 'true'
-        run: |
-          echo "::notice title=Docs skipped::Missing secrets. Need OPENAI_API_KEY and GH_PAT_WORKFLOW."
+      - name: Stop early if secret is missing
+        if: steps.secretcheck.outputs.missing == 'true'
+        run: echo "::notice title=Docs skipped::No OPENAI_API_KEY secret configured."
 
-      - name: Checkout repo
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+      - name: Checkout repo (clean)
+        if: steps.secretcheck.outputs.missing == 'false'
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+          clean: true
 
       - name: Setup Node
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+        if: steps.secretcheck.outputs.missing == 'false'
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install jq
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+        if: steps.secretcheck.outputs.missing == 'false'
         run: sudo apt-get install -y jq
 
       - name: Install dependencies
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+        if: steps.secretcheck.outputs.missing == 'false'
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -67,73 +69,51 @@ jobs:
           fi
 
       - name: Collect repository context
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+        if: steps.secretcheck.outputs.missing == 'false'
         run: |
           set -euo pipefail
           FLAG=${{ github.event.inputs.include-template == 'true' && '--all' || '--user-only' }}
-          node scripts/generate-docs.mjs $FLAG
+          node scripts/generate-docs.mjs $FLAG wiki
           echo "Context size:" && wc -c repo_context.txt || true
 
       - name: Generate README with OpenAI (scripted)
         if: steps.secretcheck.outputs.missing == 'false'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          FORCE_REFRESH: ${{ github.event.inputs.force-refresh || 'false' }}
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-        run: bash scripts/ai-readme.sh
+        run: |
+          bash scripts/ai-readme.sh "${{ github.event.inputs.force_refresh || 'false' }}"
 
       - name: Build Wiki from code comments
         if: steps.secretcheck.outputs.missing == 'false'
-        env:
-          FORCE_REFRESH: ${{ github.event.inputs.force-refresh || 'false' }}
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-        run: |
-          npm run docs:wiki
-          # Optionaler „Stempel“, damit Git sicher eine Änderung sieht
-          if [ "${FORCE_REFRESH}" = "true" ]; then
-            echo "<!-- wiki-refresh:${GITHUB_RUN_ID} sha:${GITHUB_SHA} -->" >> docs/wiki/Home.md
-          fi
-      - name: Format README and Wiki
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
-        run: npm run fmt README.md docs/wiki
+        run: node scripts/generate-docs.mjs --wiki
 
-      # ---------- Push ins Wiki (.wiki.git) mit PAT ----------
-      - name: Push Wiki
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+      - name: Format README and Wiki
+        if: steps.secretcheck.outputs.missing == 'false'
+        run: npm run fmt README.md docs/wiki || true
+
+      - name: Push Wiki (wiki.git only – no main)
+        if: steps.secretcheck.outputs.missing == 'false'
         env:
-          PAT: ${{ secrets.GH_PAT_WORKFLOW }}   # PAT mit Scopes: repo, workflow
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          # 0) Abbruch, wenn nichts zu pushen
           if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
-            echo "No wiki content to push."
-            exit 0
+            echo "No wiki content to push."; exit 0
           fi
-
-          WIKI_URL="https://x-access-token:${PAT}@github.com/${GITHUB_REPOSITORY}.wiki.git"
 
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          WIKI_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
 
           rm -rf wiki-repo
           git clone "$WIKI_URL" wiki-repo
           git -C wiki-repo remote set-url origin "$WIKI_URL"
 
-          # Default-Branch des Wikis ermitteln (master/main)
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
-          if [ -z "${DEFAULT_BRANCH:-}" ]; then
-            if git -C wiki-repo show-ref --verify --quiet refs/remotes/origin/master; then
-              DEFAULT_BRANCH="master"
-            else
-              DEFAULT_BRANCH="main"
-            fi
-          fi
-          echo "Wiki default branch: ${DEFAULT_BRANCH}"
+          [ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=master
 
-          # Branch sauber auf Remote-Stand setzen
           if git -C wiki-repo show-ref --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}"; then
             git -C wiki-repo checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
           else
@@ -141,55 +121,30 @@ jobs:
             rm -rf wiki-repo/*
             git -C wiki-repo commit --allow-empty -m "init wiki"
           fi
-          git -C wiki-repo fetch origin "${DEFAULT_BRANCH}" || true
-          git -C wiki-repo reset --hard "origin/${DEFAULT_BRANCH}" || true
-          git -C wiki-repo clean -fdx
 
-          # Inhalte spiegeln und Altlasten entfernen
+          # Sync & optional cleanup von Altlasten
           rsync -a --delete docs/wiki/ wiki-repo/
-          git -C wiki-repo ls-files | grep -Ei '^README(|-.*)?\.md$' | xargs -r -I{} git -C wiki-repo rm -f "{}" || true
 
-          # Commit + Push (mit Fallback)
           git -C wiki-repo add -A
           if git -C wiki-repo diff --cached --quiet; then
-            echo "No wiki changes to commit."
-            exit 0
+            echo "No wiki changes to commit."; exit 0
           fi
           git -C wiki-repo commit -m "docs: update Wiki from workflow"
 
           echo "Pushing wiki HEAD -> ${DEFAULT_BRANCH}"
-          if ! git -C wiki-repo push origin HEAD:refs/heads/${DEFAULT_BRANCH}; then
-            echo "Non-fast-forward, rebasing…"
-            git -C wiki-repo fetch origin ${DEFAULT_BRANCH} || true
-            git -C wiki-repo pull --rebase origin ${DEFAULT_BRANCH} || true
-            git -C wiki-repo push origin HEAD:refs/heads/${DEFAULT_BRANCH} || \
-              git -C wiki-repo push --force-with-lease origin HEAD:refs/heads/${DEFAULT_BRANCH}
-          fi
-
+          git -C wiki-repo push origin HEAD:"${DEFAULT_BRANCH}" || \
+          git -C wiki-repo push --force-with-lease origin HEAD:"${DEFAULT_BRANCH}"
           echo "✅ Wiki pushed."
 
-      # ---------- PR im Haupt-Repo (PAT nutzen) ----------
-      - name: Ensure clean git state (abort merges, clean index)
-        run: |
-          set -euo pipefail
-          git status
-          git merge --abort || true
-          # Falls ein mergetool/REBASE aktiv war, sauber abbrechen:
-          git rebase --abort || true
-          # Index/Working tree säubern (HEAD beibehalten)
-          git reset --mixed
-          git checkout -- .
-          git clean -fd
-          git status
-
-      - name: Prepare docs branch (no checkout/switch)
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+      - name: Prepare docs branch (for PR with README + docs/wiki)
+        if: steps.secretcheck.outputs.missing == 'false'
         id: prep
         run: |
           set -euo pipefail
           BR="docs/generated-${{ github.run_id }}"
           git add README.md docs/wiki || true
           if git diff --cached --quiet; then
+            echo "No doc changes detected – skipping PR."
             echo "skip_pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip_pr=false" >> "$GITHUB_OUTPUT"
@@ -198,10 +153,10 @@ jobs:
 
       - name: Create Pull Request
         id: cpr
-        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.missing == 'false'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GH_PAT_WORKFLOW }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           base: main
           branch: ${{ steps.prep.outputs.branch }}
           commit-message: 'docs: auto-generate README + Wiki'
@@ -212,11 +167,3 @@ jobs:
           add-paths: |
             README.md
             docs/wiki/**
-
-      - name: Enable auto-merge (squash)
-        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
-        uses: peter-evans/enable-pull-request-automerge@v3
-        with:
-          token: ${{ secrets.GH_PAT_WORKFLOW }}
-          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
-          merge-method: squash
