@@ -17,7 +17,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-
+  actions: write
 concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: false
@@ -90,6 +90,29 @@ jobs:
       - name: Format README and Wiki
         if: steps.secretcheck.outputs.missing == 'false'
         run: npm run fmt README.md docs/wiki || true
+
+      - name: Push Wiki overwrite
+        if: steps.secretcheck.outputs.missing == 'false'
+        run: |
+          set -euo pipefail
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Frisches Wiki klonen
+          git clone "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
+
+          # Sicherstellen, dass Wiki-Repo 100% auf Remote-Stand ist
+          git -C wiki-repo fetch origin master
+          git -C wiki-repo reset --hard origin/master
+          git -C wiki-repo clean -fd
+
+          # Neuen Inhalt aus docs/wiki/ rübersyncen
+          rsync -a --delete docs/wiki/ wiki-repo/
+
+          # Commit & Push
+          git -C wiki-repo add -A
+          git -C wiki-repo commit -m "docs: update Wiki from workflow" || echo "No changes to commit"
+          git -C wiki-repo push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.wiki.git" master
 
       - name: Push Wiki (clean reset + force-with-lease)
         if: steps.secretcheck.outputs.missing == 'false'
