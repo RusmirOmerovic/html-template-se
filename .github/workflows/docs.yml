@@ -103,7 +103,7 @@ jobs:
 
           # Sicherstellen, dass Wiki-Repo 100% auf Remote-Stand ist
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
-          [-z "${DEFAULT_BRANCH:-}" ] && DEFAULT_BRANCH=main
+          [ -z "${DEFAULT_BRANCH:-}" ] && DEFAULT_BRANCH=main
 
           git -C wiki-repo fetch origin "${DEFAULT_BRANCH}"
           git -C wiki-repo reset --hard "origin/${DEFAULT_BRANCH}"
