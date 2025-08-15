@@ -100,12 +100,13 @@ jobs:
 
           WIKI_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
 
-          git config --global user.name "github-actions[bot]"
+          git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # 1) Wiki-Repository frisch klonen
+          # 1) Wiki-Repo frisch klonen und sicherstellen, dass origin auf das Wiki zeigt
           rm -rf wiki-repo
           git clone "$WIKI_URL" wiki-repo
+          git -C wiki-repo remote set-url origin "$WIKI_URL"
 
           # 2) Default-Branch (master/main) ermitteln
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
@@ -131,25 +132,22 @@ jobs:
           rsync -a --delete docs/wiki/ wiki-repo/
           git -C wiki-repo add -A
           if git -C wiki-repo diff --cached --quiet; then
-            echo "No wiki changes to commit (already up to date)."
+            echo "No wiki changes to commit."
             exit 0
           fi
           git -C wiki-repo commit -m "docs: update Wiki from workflow"
 
-          # 5) Push: normal → bei Reject fetch + pull --rebase → retry → force-with-lease
+          # 5) Push: normal → bei Ablehnung fetch+rebase → retry → force-with-lease
           echo "Pushing to ${DEFAULT_BRANCH}..."
-          if ! git -C wiki-repo push "$WIKI_URL" HEAD:${DEFAULT_BRANCH}; then
-            echo "Push rejected. Fetching remote branch and rebasing..."
-            git -C wiki-repo fetch origin || true
-            if git -C wiki-repo rev-parse --verify "origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
-              git -C wiki-repo pull --rebase origin "${DEFAULT_BRANCH}" || true
-            else
-              echo "Remote branch ${DEFAULT_BRANCH} missing, skipping pull."
-            fi
-            git -C wiki-repo push "$WIKI_URL" HEAD:${DEFAULT_BRANCH} || \
-              git -C wiki-repo push --force-with-lease "$WIKI_URL" HEAD:${DEFAULT_BRANCH}
+          if ! git -C wiki-repo push origin HEAD:${DEFAULT_BRANCH}; then
+            echo "Push rejected. Fetching and rebasing..."
+            git -C wiki-repo fetch origin ${DEFAULT_BRANCH} || true
+            git -C wiki-repo pull --rebase origin ${DEFAULT_BRANCH} || true
+            git -C wiki-repo push origin HEAD:${DEFAULT_BRANCH} || \
+              git -C wiki-repo push --force-with-lease origin HEAD:${DEFAULT_BRANCH}
           fi
           echo "✅ Wiki pushed."
+
 
       - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.missing == 'false'
