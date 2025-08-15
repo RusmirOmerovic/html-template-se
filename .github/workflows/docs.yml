@@ -125,7 +125,15 @@ jobs:
 
           # Inhalte hart ersetzen
           find wiki-repo -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
-          rsync -a --delete docs/wiki/ wiki-repo/
+          
+          # Falls im Remote noch alte README-Seiten existierten, sicher entfernen
+          rm -f wiki-repo/README.md wiki-repo/README || true
+          git -C wiki-repo rm -f --ignore-unmatch README.md README || true
+
+          # Jetzt syncen – README.md aus der Quelle ausschließen
+          rsync -a --delete \
+            --exclude 'README.md' \
+            docs/wiki/ wiki-repo/
 
           git -C wiki-repo add -A
           # Wenn es wirklich gar keine Änderungen gibt, sauber beenden
