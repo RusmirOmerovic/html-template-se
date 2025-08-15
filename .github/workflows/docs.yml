@@ -92,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 0) Gibt's überhaupt Inhalte?
+          # 0) Wiki-Inhalt vorhanden?
           if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
             echo "No wiki content to push."
             exit 0
@@ -103,11 +103,11 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # 1) Frisches Wiki-Repo holen
+          # 1) Wiki-Repository frisch klonen
           rm -rf wiki-repo
           git clone "$WIKI_URL" wiki-repo
 
-          # 2) Remote-Default-Branch ermitteln (master/main)
+          # 2) Default-Branch (master/main) ermitteln
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
           if [ -z "${DEFAULT_BRANCH:-}" ]; then
             if git -C wiki-repo show-ref --verify --quiet refs/remotes/origin/master; then
@@ -118,7 +118,7 @@ jobs:
           fi
           echo "Wiki default branch detected: ${DEFAULT_BRANCH}"
 
-          # 3) Branch auschecken (falls nicht vorhanden, neu anlegen)
+          # 3) Branch auschecken (ggf. neu anlegen)
           if git -C wiki-repo show-ref --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}"; then
             git -C wiki-repo checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
           else
@@ -126,12 +126,9 @@ jobs:
             rm -rf wiki-repo/*
             git -C wiki-repo commit --allow-empty -m "init wiki"
           fi
-          echo "Local branch now: $(git -C wiki-repo rev-parse --abbrev-ref HEAD)"
 
-          # 4) Inhalte spiegeln
+          # 4) Inhalte spiegeln und committen
           rsync -a --delete docs/wiki/ wiki-repo/
-
-          # 5) Commiten (wenn Änderungen) …
           git -C wiki-repo add -A
           if git -C wiki-repo diff --cached --quiet; then
             echo "No wiki changes to commit (already up to date)."
@@ -139,13 +136,9 @@ jobs:
           fi
           git -C wiki-repo commit -m "docs: update Wiki from workflow"
 
-          # 6) Push: normal -> bei Reject pull --rebase -> retry -> ggf. force-with-lease
-          echo "Pushing to $WIKI_URL (HEAD -> ${DEFAULT_BRANCH})"
-          set +e
-          git -C wiki-repo push "$WIKI_URL" HEAD:refs/heads/${DEFAULT_BRANCH}
-          rc=$?
-          set -e
-          if [ $rc -ne 0 ]; then
+          # 5) Push: normal → bei Reject pull --rebase → retry → force-with-lease
+          echo "Pushing to ${DEFAULT_BRANCH}..."
+          if ! git -C wiki-repo push "$WIKI_URL" HEAD:refs/heads/${DEFAULT_BRANCH}; then
             echo "Non-fast-forward. Rebase onto origin/${DEFAULT_BRANCH} and retry..."
             git -C wiki-repo fetch origin ${DEFAULT_BRANCH} || true
             git -C wiki-repo pull --rebase origin ${DEFAULT_BRANCH} || true
