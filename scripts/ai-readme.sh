@@ -64,9 +64,11 @@ if [ -z "$CONTENT" ]; then
 fi
 
 printf '%s\n' "$CONTENT" > README.md
-if [ ! -s README.md ]; then
-  echo "README is empty after write." >&2
-  exit 1
+[ -s README.md ] || { echo "README is empty after write." >&2; exit 1; }
+
+# Optionale „Force“-Änderung, damit Git sicher einen Diff sieht
+if [ "${FORCE_REFRESH:-false}" = "true" ]; then
+  echo "<!-- readme-refresh:${GITHUB_RUN_ID:-local} sha:${GITHUB_SHA:-local} -->" >> README.md
 fi
 
 echo "README.md written."

@@ -7,6 +7,10 @@ on:
         description: 'Include template directories'
         required: false
         default: 'false'
+      force-refresh:
+        description: 'Force refresh README & Wiki (append stamp)'
+        required: false
+        default: 'false'
   push:
     branches: ['main']
 
@@ -71,15 +75,26 @@ jobs:
           echo "Context size:" && wc -c repo_context.txt || true
 
       - name: Generate README with OpenAI (scripted)
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
+        if: steps.secretcheck.outputs.missing == 'false'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          FORCE_REFRESH: ${{ github.event.inputs.force-refresh || 'false' }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: bash scripts/ai-readme.sh
 
       - name: Build Wiki from code comments
-        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
-        run: npm run docs:wiki
-
+        if: steps.secretcheck.outputs.missing == 'false'
+        env:
+          FORCE_REFRESH: ${{ github.event.inputs.force-refresh || 'false' }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          npm run docs:wiki
+          # Optionaler „Stempel“, damit Git sicher eine Änderung sieht
+          if [ "${FORCE_REFRESH}" = "true" ]; then
+            echo "<!-- wiki-refresh:${GITHUB_RUN_ID} sha:${GITHUB_SHA} -->" >> docs/wiki/Home.md
+          fi
       - name: Format README and Wiki
         if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         run: npm run fmt README.md docs/wiki
