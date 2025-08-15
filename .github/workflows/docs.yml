@@ -102,8 +102,11 @@ jobs:
           git clone "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
 
           # Sicherstellen, dass Wiki-Repo 100% auf Remote-Stand ist
-          git -C wiki-repo fetch origin master
-          git -C wiki-repo reset --hard origin/master
+          DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
+          [-z "${DEFAULT_BRANCH:-}" ] && DEFAULT_BRANCH=master
+
+          git -C wiki-repo fetch origin "${DEFAULT_BRANCH}"
+          git -C wiki-repo reset --hard "origin/${DEFAULT_BRANCH}"
           git -C wiki-repo clean -fd
 
           # Neuen Inhalt aus docs/wiki/ rübersyncen
