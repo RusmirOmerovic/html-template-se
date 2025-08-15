@@ -154,6 +154,19 @@ jobs:
           echo "✅ Wiki pushed."
 
       # ---------- PR im Haupt-Repo (PAT nutzen) ----------
+      - name: Ensure clean git state (abort merges, clean index)
+        run: |
+          set -euo pipefail
+          git status
+          git merge --abort || true
+          # Falls ein mergetool/REBASE aktiv war, sauber abbrechen:
+          git rebase --abort || true
+          # Index/Working tree säubern (HEAD beibehalten)
+          git reset --mixed
+          git checkout -- .
+          git clean -fd
+          git status
+
       - name: Prepare docs branch (no checkout/switch)
         if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         id: prep
