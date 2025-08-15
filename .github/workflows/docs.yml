@@ -20,42 +20,41 @@ concurrency:
 
 jobs:
   docs:
-    name: Build docs with OpenAI and open PR
+    name: Build docs with OpenAI, push Wiki, open PR
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check required secret
+      - name: Check required secrets
         id: secretcheck
         run: |
-          if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
-            echo "OPENAI_API_KEY is missing – skipping docs generation."
-            echo "missing=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "missing=false" >> "$GITHUB_OUTPUT"
-          fi
+          miss_openai=$([ -z "${{ secrets.OPENAI_API_KEY }}" ] && echo true || echo false)
+          miss_pat=$([ -z "${{ secrets.GH_PAT_WORKFLOW }}" ] && echo true || echo false)
+          echo "miss_openai=$miss_openai" >> "$GITHUB_OUTPUT"
+          echo "miss_pat=$miss_pat" >> "$GITHUB_OUTPUT"
 
-      - name: Stop early if secret is missing
-        if: steps.secretcheck.outputs.missing == 'true'
-        run: echo "::notice title=Docs skipped::No OPENAI_API_KEY secret configured."
+      - name: Stop early if secrets missing
+        if: steps.secretcheck.outputs.miss_openai == 'true' || steps.secretcheck.outputs.miss_pat == 'true'
+        run: |
+          echo "::notice title=Docs skipped::Missing secrets. Need OPENAI_API_KEY and GH_PAT_WORKFLOW."
 
       - name: Checkout repo
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Setup Node (for consistency)
-        if: steps.secretcheck.outputs.missing == 'false'
+      - name: Setup Node
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
       - name: Install jq
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         run: sudo apt-get install -y jq
 
       - name: Install dependencies
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -64,7 +63,7 @@ jobs:
           fi
 
       - name: Collect repository context
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         run: |
           set -euo pipefail
           FLAG=${{ github.event.inputs.include-template == 'true' && '--all' || '--user-only' }}
@@ -72,54 +71,44 @@ jobs:
           echo "Context size:" && wc -c repo_context.txt || true
 
       - name: Generate README with OpenAI (scripted)
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: bash scripts/ai-readme.sh
 
       - name: Build Wiki from code comments
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         run: npm run docs:wiki
 
       - name: Format README and Wiki
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         run: npm run fmt README.md docs/wiki
 
+      # ---------- Push ins Wiki (.wiki.git) mit PAT ----------
       - name: Push Wiki
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAT: ${{ secrets.GH_PAT_WORKFLOW }}
         run: |
           set -euo pipefail
-
-          # 0) Wiki-Inhalt vorhanden?
           if [ ! -d docs/wiki ] || [ -z "$(ls -A docs/wiki)" ]; then
-            echo "No wiki content to push."
-            exit 0
+            echo "No wiki content to push."; exit 0
           fi
 
-          WIKI_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          WIKI_URL="https://x-access-token:${PAT}@github.com/${GITHUB_REPOSITORY}.wiki.git"
 
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # 1) Wiki-Repo frisch klonen und sicherstellen, dass origin auf das Wiki zeigt
           rm -rf wiki-repo
           git clone "$WIKI_URL" wiki-repo
-          git -C wiki-repo remote set-url origin "$WIKI_URL"
 
-          # 2) Default-Branch (master/main) ermitteln
           DEFAULT_BRANCH="$(git -C wiki-repo remote show origin | awk '/HEAD branch/ {print $NF}')"
           if [ -z "${DEFAULT_BRANCH:-}" ]; then
-            if git -C wiki-repo show-ref --verify --quiet refs/remotes/origin/master; then
-              DEFAULT_BRANCH="master"
-            else
-              DEFAULT_BRANCH="main"
-            fi
+            if git -C wiki-repo show-ref --verify --quiet refs/remotes/origin/master; then DEFAULT_BRANCH="master"; else DEFAULT_BRANCH="main"; fi
           fi
-          echo "Wiki default branch detected: ${DEFAULT_BRANCH}"
+          echo "Wiki default branch: ${DEFAULT_BRANCH}"
 
-          # 3) Branch auschecken (ggf. neu anlegen)
           if git -C wiki-repo show-ref --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}"; then
             git -C wiki-repo checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
           else
@@ -128,36 +117,33 @@ jobs:
             git -C wiki-repo commit --allow-empty -m "init wiki"
           fi
 
-          # 4) Inhalte spiegeln und committen
           rsync -a --delete docs/wiki/ wiki-repo/
+
           git -C wiki-repo add -A
           if git -C wiki-repo diff --cached --quiet; then
-            echo "No wiki changes to commit."
-            exit 0
+            echo "No wiki changes to commit."; exit 0
           fi
           git -C wiki-repo commit -m "docs: update Wiki from workflow"
 
-          # 5) Push: normal → bei Ablehnung fetch+rebase → retry → force-with-lease
-          echo "Pushing to ${DEFAULT_BRANCH}..."
-          if ! git -C wiki-repo push origin HEAD:${DEFAULT_BRANCH}; then
-            echo "Push rejected. Fetching and rebasing..."
-            git -C wiki-repo fetch origin ${DEFAULT_BRANCH} || true
-            git -C wiki-repo pull --rebase origin ${DEFAULT_BRANCH} || true
-            git -C wiki-repo push origin HEAD:${DEFAULT_BRANCH} || \
-              git -C wiki-repo push --force-with-lease origin HEAD:${DEFAULT_BRANCH}
+          echo "Pushing wiki HEAD -> ${DEFAULT_BRANCH}"
+          if ! git -C wiki-repo push "$WIKI_URL" HEAD:refs/heads/${DEFAULT_BRANCH}; then
+            echo "Non-fast-forward, rebasing…"
+            git -C wiki-repo fetch "$WIKI_URL" ${DEFAULT_BRANCH} || true
+            git -C wiki-repo pull --rebase "$WIKI_URL" ${DEFAULT_BRANCH} || true
+            git -C wiki-repo push "$WIKI_URL" HEAD:refs/heads/${DEFAULT_BRANCH} || \
+              git -C wiki-repo push --force-with-lease "$WIKI_URL" HEAD:refs/heads/${DEFAULT_BRANCH}
           fi
           echo "✅ Wiki pushed."
 
-
+      # ---------- PR im Haupt-Repo (PAT nutzen) ----------
       - name: Prepare docs branch (no checkout/switch)
-        if: steps.secretcheck.outputs.missing == 'false'
+        if: steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         id: prep
         run: |
           set -euo pipefail
           BR="docs/generated-${{ github.run_id }}"
           git add README.md docs/wiki || true
           if git diff --cached --quiet; then
-            echo "No doc changes detected – skipping PR."
             echo "skip_pr=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip_pr=false" >> "$GITHUB_OUTPUT"
@@ -166,9 +152,10 @@ jobs:
 
       - name: Create Pull Request
         id: cpr
-        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.missing == 'false'
+        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         uses: peter-evans/create-pull-request@v6
         with:
+          token: ${{ secrets.GH_PAT_WORKFLOW }}
           base: main
           branch: ${{ steps.prep.outputs.branch }}
           commit-message: 'docs: auto-generate README + Wiki'
@@ -181,9 +168,9 @@ jobs:
             docs/wiki/**
 
       - name: Enable auto-merge (squash)
-        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.missing == 'false'
+        if: steps.prep.outputs.skip_pr == 'false' && steps.secretcheck.outputs.miss_openai == 'false' && steps.secretcheck.outputs.miss_pat == 'false'
         uses: peter-evans/enable-pull-request-automerge@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT_WORKFLOW }}
           pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
           merge-method: squash
