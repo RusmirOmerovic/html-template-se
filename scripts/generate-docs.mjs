@@ -207,10 +207,10 @@ function buildWiki() {
 
   // 1) Home – kompakte Übersicht + Featureliste
   const features = [
-     '- 🧩 HTML/CSS/JS Grundgerüst mit Lint & Format',
-     '- 🧪 CI-Checks (Lint, optional Tests, Prettier)',
-     '- 🐳 Docker & Compose (lokal starten)',
-     '- 🤖 Automatische README- und Wiki-Generierung (OpenAI)',
+    '- 🧩 HTML/CSS/JS Grundgerüst mit Lint & Format',
+    '- 🧪 CI-Checks (Lint, optional Tests, Prettier)',
+    '- 🐳 Docker & Compose (lokal starten)',
+    '- 🤖 Automatische README- und Wiki-Generierung (OpenAI)',
   ].join('\n')
 
   const home = `# Wiki – ${pkg.name || 'Projekt'}
@@ -248,11 +248,13 @@ function buildWiki() {
  \`\`\`
  `
 
- fs.writeFileSync(path.join(wikiDir, 'Installation.md'), install)
+  fs.writeFileSync(path.join(wikiDir, 'Installation.md'), install)
   // 3) Usage – Skripte + Startoptionen
-  const scriptsRows = (Object.entries(pkg.scripts || {}).length
-   ? Object.entries(pkg.scripts).map(([k, v]) => `| \`${k}\` | ${v} |`).join('\n')
-   : '| (keine) | - |')
+  const scriptsRows = Object.entries(pkg.scripts || {}).length
+    ? Object.entries(pkg.scripts)
+        .map(([k, v]) => `| \`${k}\` | ${v} |`)
+        .join('\n')
+    : '| (keine) | - |'
   const usage = `# Usage ▶️
     ## npm Scripts
     | Script | Befehl |
@@ -264,27 +266,31 @@ function buildWiki() {
   ${fs.existsSync('index.js') ? safeRead('index.js').trim() : '// (keine index.js gefunden)'}
   \`\`\`
   `
-    fs.writeFileSync(path.join(wikiDir, 'Usage.md'), usage)
+  fs.writeFileSync(path.join(wikiDir, 'Usage.md'), usage)
 
   // 4) CI/CD – echte Dateien auflisten
-   const wfDir = path.join(process.cwd(), '.github', 'workflows')
-   const wfs = fs.existsSync(wfDir) ? fs.readdirSync(wfDir).filter(f => f.endsWith('.yml') || f.endsWith('.yaml')) : []
-   const wfTable = (wfs.length ? wfs : ['(keine gefunden)']).map(f => `| \`${f}\` | Workflow-Datei |`).join('\n')
-   const cicd = `# CI/CD 🤖
+  const wfDir = path.join(process.cwd(), '.github', 'workflows')
+  const wfs = fs.existsSync(wfDir)
+    ? fs.readdirSync(wfDir).filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+    : []
+  const wfTable = (wfs.length ? wfs : ['(keine gefunden)'])
+    .map((f) => `| \`${f}\` | Workflow-Datei |`)
+    .join('\n')
+  const cicd = `# CI/CD 🤖
  | Workflow | Beschreibung |
  |---|---|
  ${wfTable}
  `
   fs.writeFileSync(path.join(wikiDir, 'CI-CD.md'), cicd)
-// 5) Contributing – klare, kurze Regeln
-const contrib = `# Contributing 🤝
+  // 5) Contributing – klare, kurze Regeln
+  const contrib = `# Contributing 🤝
 1. Branch erstellen (\`feature/...\`)
  2. \`npm run lint\` & \`npm run fmt:check\`
  3. PR erstellen – CI muss grün sein
  `
-   fs.writeFileSync(path.join(wikiDir, 'Contributing.md'), contrib)
+  fs.writeFileSync(path.join(wikiDir, 'Contributing.md'), contrib)
 
-// evtl. Platzhalter entfernen
+  // evtl. Platzhalter entfernen
   const gitkeep = path.join(wikiDir, '.gitkeep')
   if (fs.existsSync(gitkeep)) fs.unlinkSync(gitkeep)
 
