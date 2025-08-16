@@ -2,26 +2,40 @@ name: CI (HTML/CSS/JS)
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [main, testing, develop]
   push:
-    branches: [develop, feature/**]
+    branches: [testing, develop]
+
+permissions:
+  contents: write   # erlaubt das Zurückpushen in PR-Branches desselben Repos
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Use Node.js 20
+    steps:
+      # PR aus demselben Repo: echten Branch auschecken → kein detached HEAD
+      - name: Checkout PR head (same-repo PR)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}   # z.B. feature/xyz
+          fetch-depth: 0
+
+      # alle anderen Fälle (Push, Fork-PR): normaler Checkout
+      - name: Checkout (default)
+        if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      # ---- Install mit robustem Fallback ----
-      - name: Install dependencies (ci with fallback)
+      - name: Install deps
         run: |
           if [ -f package-lock.json ]; then
             npm ci || npm install --legacy-peer-deps
@@ -29,18 +43,33 @@ jobs:
             npm install --legacy-peer-deps
           fi
 
-      - name: Security audit
+      - name: Security audit (moderate)
         run: npm audit --audit-level=moderate
 
-      # ---- Linting & Format ----
-      - name: Lint HTML/CSS/JS (if present)
+      # ---------- Auto-Format nur bei PRs aus demselben Repo ----------
+      - name: Prettier write (same-repo PR, exclude workflows)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          npm run fmt
+          # **Wichtig**: Änderungen an Workflow-Dateien verwerfen, damit kein Push mit workflows-Änderung nötig ist
+          git restore --source=HEAD --staged --worktree .github/workflows || true
+
+      - name: Commit & push formatting (same-repo PR)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          if ! git diff --quiet; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore(fmt): auto-fix via CI"
+            git push origin HEAD:${{ github.head_ref }}
+          else
+            echo "No formatting changes."
+          fi
+      # -----------------------------------------------------------------
+
+      - name: Lint
         run: npm run lint --if-present
 
       - name: Prettier check
-        run: npm run fmt:check
-
-      # ---- Tests (falls vorhanden) ----
-      - name: Unit tests (if present)
-        run: npm test --if-present
-      - name: Prettier Check
         run: npm run fmt:check
